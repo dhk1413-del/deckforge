@@ -1,0 +1,51 @@
+/* Tailwind v4 —— 在入口 CSS 里 @import 本文件即可获得全部令牌（ui-design/tailwind.theme.css） */
+@theme {
+  /* 页面确认：参考布局中的橙色步骤与选页强调。 */
+  --color-primary: #2068F0;
+  --color-secondary: #5A6B87;
+  --color-tertiary: #28A0F8;
+  --color-neutral: #F1F6FD;
+  --color-surface: #ffffff;
+  --color-surface-alt: #eff4fd;
+  --color-surface-tag: #EAF3FF;
+  --color-border: #E3EBF9;
+  --color-divider: #EBF2FE;
+  --color-ink: #101828;
+  --color-ink-sub: #5A6B87;
+  --color-ink-muted: #64748F;
+  --color-accent-tint-ink: #1D5FD8;
+  --color-accent: #3B8DF7;
+  --color-accent-strong: #2068F0;
+  --color-success-bg: #e8ffea;
+  --color-success-ink: #00831f;
+  --color-warn-bg: #fff7e8;
+  --color-warn-ink: #b05600;
+  --color-danger-bg: #ffece8;
+  --color-danger-ink: #c63333;
+  --color-badge-from: #c64676;
+  --color-badge-to: #be54de;
+  --color-surface-band: #F7FAFF;
+  --color-border-strong: #D6E4F7;
+  --color-brand-grad-from: #2E6BF2;
+  --color-brand-grad-to: #3E92F8;
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+  --spacing-page-margin: 24px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --shadow-card: 0 1px 2px rgba(16,40,90,.04), 0 8px 24px rgba(16,40,90,.05);
+  --shadow-hover: 0 4px 10px rgba(16,40,90,.07), 0 18px 44px rgba(16,40,90,.10);
+  --font-sans: "PingFang SC", "Source Han Sans SC", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --text-h1: 1.75rem;
+  --text-h2: 1.25rem;
+  --text-h3: 1rem;
+  --text-body-md: 0.875rem;
+  --text-body-sm: 0.8125rem;
+  --text-caption: 0.75rem;
+}

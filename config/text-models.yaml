@@ -1,0 +1,21 @@
+# 文本模型预置配置（D7：PPT 文案梳理全走 DeepSeek）
+version: 1
+providers:
+  - id: deepseek
+    enabled: true
+    label: "DeepSeek"
+    base_url: "https://api.deepseek.com"
+    api_style: "openai_compatible"
+    api_key: ""                      # ← 用户填写（DEEPSEEK_API_KEY）
+    api_key_env: "DEEPSEEK_API_KEY"
+    models_endpoint: "/models"       # 连通性测试时实时拉取，填入下拉（禁止硬编码模型名）
+    model_fallback: []               # 实测可用：deepseek-flash / deepseek-v4-pro（按账号实际为准）
+    roles:                           # 文案梳理的 5 个环节全部走这里
+      judgment: null                 # 内容够不够料
+      outline: null                  # 大纲
+      structure: null                # 每页文案结构化
+      notes: null                    # 讲稿备注
+      optimize: null                 # 单页优化指令理解
+    timeout_seconds: 120
+    retry: 1
+    notes: "国内直连，调用必须绕过本机代理（proxies={} / --noproxy）；长文按章节分块喂。"

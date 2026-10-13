@@ -1,0 +1,63 @@
+# DeckForge 工作台 —— 仓库约定（coding agent 一律按这份来）
+
+## 是什么
+
+自托管「输入内容 → 一整套风格统一 PPT」的工作台。后端 FastAPI + SQLite(WAL)；前端 React 19 + TS + Tailwind v4（构建产物由后端托管）。
+导出两类 PPTX：**图片版**（整页图铺底）与**原生可编辑版**（文本/形状/图表都是 PowerPoint 原生对象，PptxGenJS 生成）。
+
+## 目录
+
+| 路径 | 内容 |
+|---|---|
+| `server/app/` | `paths` `config` `db` `stylepacks` `providers` `render` `export_pptx` `pipeline` `main` |
+| `server/pptx/render_native.mjs` | 原生可编辑 PPTX 渲染器（**唯一排版真源**） |
+| `web/src/` | `pages/`（Wizard/Styles/Projects/Usage/Settings）、`components/`（`ProjectWorkbench` 等）、`hooks/`、`api.ts`、`types.ts` |
+| `style-packs/` | 风格包（`styles/<名>/{style.md,prompt.md}`）与版式（`layouts/*.md`） |
+| `ui-design/` | 设计令牌：**浅色为主**，底 `#F5F6FC`、白卡、主色 `#1E78FA` |
+| `tools/` | `e2e_mvp.py`（零 key 端到端 38 项）、`test_native_render.py`、`test_vision_parse.py` |
+| `docs/API.md` | 前后端接口契约（**改接口必须同步此文件**） |
+| `config/providers.yaml` | 生图/文本/网络配置模板（key 由用户在设置页填，存 DB，不进仓库） |
+
+## 铁律
+
+1. **内容归 LLM、格式归代码**：渲染器与前端**不得写死业务文案**。任何文字与数值都必须来自该页真源（`title`/`outline`/`points`/`vision`）；取不到就少画一个元素，**不许编造**（含「项目 1/2/3」这类占位标签）。
+2. **不伪造数据**：图表只画「视觉识别结果」或「要点原文里的同单位数值」；无可用数据时不画图表，并在页面上标注数据来源。
+3. **零 key 可跑**：没有任何 API key 时，全流程走 `local_render` 本地兜底（成本 0），这条底线不能破。
+4. 中文界面；数字用等宽 `num` 类；配色走 `ui-design/` 令牌（浅色为主）。
+5. **不改** `web/dist/`（由 `npm run build` 生成）；**不提交密钥**；**不要 `git commit`**（由人工决定）。
+
+## 自检命令（每次改完都要跑，并把真实输出贴出来）
+
+```bash
+make verify        # 规范验收：7 套离线回归 + 前端构建 + 线上只读冒烟（一条命令，本仓无 pytest/CI）
+make verify-fast   # 同上但跳过网络冒烟（不写库、不调模型、不花钱）
+make lint          # 后端字节码编译 + 前端 tsc（改完随手跑）
+
+# 需要单独跑某一套时：
+#   .venv/bin/python tools/test_reskin_rebuild.py   # 换皮 B 口径（原文抽取/容量核算/重排）
+#   .venv/bin/python tools/test_native_render.py    # 渲染器不得伪造内容与数据
+#   .venv/bin/python tools/e2e_mvp.py               # 端到端（要求「零 key 状态」；已填 key 时口径不成立）
+```
+
+## 环境
+
+- 服务常驻：bash server/start-lan.sh（:8641，脱离终端）；停：bash server/stop-daemon.sh
+- **重启的正确姿势（踩过坑，务必照做）**：改完后端代码后，用
+  `bash server/stop-daemon.sh && bash server/start-lan.sh`；
+  **绝对不要**在 exec/终端会话里前台起服务（`bash server/run.sh` 直接跑）——实测会话结束时进程会被一起带走，
+  用户的网页随即打不开（ERR_CONNECTION_REFUSED）。重启后用
+  `ps -o pid,ppid -p $(cat data/logs/deckforge.pid)` 确认 **PPID=1**，并
+  `curl -s --noproxy '*' http://127.0.0.1:8641/api/health` 确认 `ok=true`。
+- **看门狗（服务掉了自动拉起）**：`server/watchdog.sh` 每 60s 探活，健康检查非 200 就用**当前 HOST/PORT**（默认 127.0.0.1:8641）重新拉起；日志 `data/logs/watchdog.log`。
+  启动（macOS 没有 `setsid`，用新会话 spawn，别用 `nohup ... &`，会话结束会被带走）：
+  ```bash
+  python3 - <<'PY'
+  import os, subprocess
+  subprocess.Popen(["bash", "server/watchdog.sh"], cwd=os.getcwd(), stdin=subprocess.DEVNULL,
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+  PY
+  # 停：pkill -f 'server/watchdog.sh'
+  ```
+  实测：手动 `stop-daemon.sh` 后 30 秒内被自动拉起。
+- 无独立 codex：用 /Applications/ChatGPT.app/Contents/Resources/codex；跑前 export HTTPS_PROXY=http://127.0.0.1:7897
+- `web/node_modules` 已存在，构建**不需要联网**

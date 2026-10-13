@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>DeckForge UI 设计规范 · 预览</title>
+<style>
+/* ============================================================
+   DeckForge UI 令牌 —— 由 tokens.json 与生成器模板导出（勿手改）
+   生成来源：W3C DTCG tokens.json；版本：v2
+   用法：任何前端直接 <link rel="stylesheet" href="app.css"> 即可拿到令牌与组件类
+   ============================================================ */
+
+:root {
+  /* —— 颜色—— */
+  --color-primary: #2068F0;
+  --color-secondary: #5A6B87;
+  --color-tertiary: #28A0F8;
+  --color-neutral: #F1F6FD;
+  --color-surface: #ffffff;
+  --color-surface-alt: #eff4fd;
+  --color-surface-tag: #EAF3FF;
+  --color-border: #E3EBF9;
+  --color-divider: #EBF2FE;
+  --color-ink: #101828;
+  --color-ink-sub: #5A6B87;
+  --color-ink-muted: #64748F;
+  --color-accent-tint-ink: #1D5FD8;
+  --color-accent: #3B8DF7;
+  --color-accent-strong: #2068F0;
+  --color-success-bg: #e8ffea;
+  --color-success-ink: #00831f;
+  --color-warn-bg: #fff7e8;
+  --color-warn-ink: #b05600;
+  --color-danger-bg: #ffece8;
+  --color-danger-ink: #c63333;
+  --color-badge-from: #c64676;
+  --color-badge-to: #be54de;
+  --color-surface-band: #F7FAFF;
+  --color-border-strong: #D6E4F7;
+  --color-brand-grad-from: #2E6BF2;
+  --color-brand-grad-to: #3E92F8;
+
+  /* —— 间距 / 圆角 —— */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+  --spacing-page-margin: 24px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+
+  /* —— 字体与字号 —— */
+  --font-sans: "PingFang SC", "Source Han Sans SC", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --text-h1: 1.75rem;
+  --text-h1--weight: 600;
+  --text-h1--font: "PingFang SC";
+  --text-h2: 1.25rem;
+  --text-h2--weight: 600;
+  --text-h2--font: "PingFang SC";
+  --text-h3: 1rem;
+  --text-h3--weight: 600;
+  --text-h3--font: "PingFang SC";
+  --text-body-md: 0.875rem;
+  --text-body-md--weight: 400;
+  --text-body-md--font: "PingFang SC";
+  --text-body-sm: 0.8125rem;
+  --text-body-sm--weight: 400;
+  --text-body-sm--font: "PingFang SC";
+  --text-caption: 0.75rem;
+  --text-caption--weight: 400;
+  --text-caption--font: "PingFang SC";
+
+  /* —— 卡片 / 悬停 / 浮层阴影 —— */
+  --shadow-card: 0 1px 2px rgba(16,40,90,.04), 0 8px 24px rgba(16,40,90,.05);
+  --shadow-hover: 0 4px 10px rgba(16,40,90,.07), 0 18px 44px rgba(16,40,90,.10);
+  --shadow-overlay: 0 1px 2px rgba(30,35,46,.04), 0 8px 24px rgba(30,35,46,.06);
+  --color-ledger-divider: #EEF4FE;
+  --dur-fast: 140ms;
+}
+
+/* —— 暗色（v2）：令牌级覆盖，组件无需改动 —— */
+[data-theme="dark"] {
+  --color-surface-band: #1E2330;
+  --color-border-strong: #333A4B;
+  --color-brand-grad-from: #3C74C9;
+  --color-brand-grad-to: #3C74C9;
+  --color-secondary: #A3AAB8;
+  --color-neutral: #12151C;
+  --color-surface: #1A1E27;
+  --color-surface-alt: #222634;
+  --color-surface-tag: #23304A;
+  --color-border: #2C3241;
+  --color-divider: #2C3241;
+  --color-ink: #E8EBF2;
+  --color-ink-sub: #A3AAB8;
+  --color-ink-muted: #8A93A3;
+  --color-primary: #3C74C9;
+  --color-accent-strong: #3C74C9;
+  --color-accent: #4C93FF;
+  --color-accent-tint-ink: #9CC4FF;
+  --color-success-bg: #0F2A18;
+  --color-success-ink: #4ADE80;
+  --color-warn-bg: #2E2210;
+  --color-warn-ink: #FBBF24;
+  --color-danger-bg: #331A1A;
+  --color-danger-ink: #F87171;
+  --color-ledger-divider: #2C3241;
+  --shadow-card: 0 1px 2px rgba(0,0,0,.40), 0 8px 24px rgba(0,0,0,.35);
+  --shadow-hover: 0 6px 14px rgba(0,0,0,.45), 0 18px 44px rgba(0,0,0,.50);
+  --shadow-overlay: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.5);
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--color-neutral); color: var(--color-ink);
+  font-family: var(--font-sans); font-size: var(--text-body-md); line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ============ 组件类（与 DESIGN.md 的 25 个组件一一对应） ============ */
+/* 数字继承正文字体，仅启用表格数字 */
+.num, td.num, .metric-value { font-feature-settings: "tnum"; }
+
+/* 卡片 */
+.card {
+  background: var(--color-surface); color: var(--color-ink);
+  border: 1px solid var(--color-border); border-radius: var(--radius-lg);
+  padding: var(--spacing-lg);
+  box-shadow: var(--shadow-card);
+}
+.card-title { font-size: var(--text-h2); font-weight: var(--text-h2--weight); margin: 0 0 var(--spacing-sm); }
+.card-desc { color: var(--color-secondary); margin: 0 0 var(--spacing-md); }
+
+/* 按钮 */
+.btn {
+  display: inline-flex; align-items: center; gap: var(--spacing-xs);
+  height: 40px; padding: 0 var(--spacing-md); border-radius: var(--radius-md);
+  font-family: inherit; font-size: var(--text-body-md); cursor: pointer;
+  border: 1px solid transparent; transition: background var(--dur-fast), border-color var(--dur-fast), transform var(--dur-fast);
+}
+.btn:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.btn:active { transform: scale(.99); }
+.btn-primary { background: linear-gradient(92deg, var(--color-brand-grad-from), var(--color-brand-grad-to)); color: #fff; box-shadow: 0 6px 16px rgba(32,104,240,.28); }
+.btn-primary:hover { filter: brightness(.96); }
+.btn-secondary { background: var(--color-surface); color: var(--color-ink); border-color: var(--color-border-strong); }
+.btn-secondary:hover { background: var(--color-surface-alt); }
+.btn-ghost { background: transparent; color: var(--color-accent-strong); }
+.btn-ghost:hover { background: var(--color-surface-tag); }
+.btn[disabled], .btn.is-disabled { opacity: .5; cursor: not-allowed; }
+
+/* 标签 / 角标 */
+.tag {
+  display: inline-block; padding: 2px var(--spacing-sm); border-radius: var(--radius-sm);
+  background: var(--color-surface-tag); color: var(--color-accent-tint-ink); font-size: var(--text-body-sm);
+}
+.badge {
+  display: inline-block; padding: 2px var(--spacing-sm); border-radius: var(--radius-sm); color: #fff;
+  background: linear-gradient(90deg, var(--color-badge-from), var(--color-badge-to)); font-size: var(--text-caption);
+}
+
+/* 输入 */
+.input {
+  height: 40px; width: 100%; padding: 0 var(--spacing-md); border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-strong); background: var(--color-surface); color: var(--color-ink);
+  font-family: inherit; font-size: var(--text-body-md);
+}
+.input::placeholder { color: var(--color-ink-muted); }
+.input:focus { outline: none; border-color: var(--color-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 18%, transparent); }
+.input.is-error { border-color: var(--color-danger-ink); }
+
+/* 区块 / 链接 / 指标 */
+.panel-alt { background: var(--color-surface-alt); border-radius: var(--radius-md); padding: var(--spacing-md); }
+.link { color: var(--color-accent-strong); text-decoration: none; cursor: pointer; }
+.link:hover { text-decoration: underline; }
+.metric { display: flex; flex-direction: column; gap: 2px; }
+.metric-label { color: var(--color-ink-sub); font-size: var(--text-caption); }
+.metric-value { font-size: 1.25rem; font-weight: 600; }
+
+/* 进度条 */
+.progress { height: 8px; border-radius: 999px; background: var(--color-surface-alt); overflow: hidden; }
+.progress > i { display: block; height: 100%; border-radius: 999px; background: linear-gradient(92deg, var(--color-accent), var(--color-tertiary)); }
+.progress.is-decor > i { background: linear-gradient(92deg, var(--color-accent), var(--color-tertiary)); }
+
+/* 步骤条 */
+.steps { display: flex; gap: var(--spacing-sm); flex-wrap: wrap; align-items: center; }
+.step {
+  display: inline-flex; align-items: center; gap: 6px; padding: 6px var(--spacing-sm);
+  border-radius: 999px; font-size: var(--text-body-sm);
+}
+.step.done { background: var(--color-surface-tag); color: var(--color-accent-tint-ink); }
+.step.active { background: linear-gradient(92deg, var(--color-brand-grad-from), var(--color-brand-grad-to)); color: #fff; }
+.step.pending { background: var(--color-surface-alt); color: var(--color-ink-sub); }
+.step.error { background: var(--color-danger-bg); color: var(--color-danger-ink); }
+.step-sep { color: var(--color-border); }
+
+/* 状态胶囊 */
+.status { display: inline-block; padding: 2px var(--spacing-sm); border-radius: 999px; font-size: var(--text-caption); }
+.status-success { background: var(--color-success-bg); color: var(--color-success-ink); }
+.status-warn { background: var(--color-warn-bg); color: var(--color-warn-ink); }
+.status-danger { background: var(--color-danger-bg); color: var(--color-danger-ink); }
+.status-info { background: var(--color-surface-tag); color: var(--color-accent-tint-ink); }
+
+/* 缩略图网格（业务组件） */
+.thumb-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: var(--spacing-md); }
+.thumb {
+  position: relative; aspect-ratio: 16/9; border-radius: var(--radius-md); border: 1px solid var(--color-border);
+  background: var(--color-surface-alt); display: flex; align-items: center; justify-content: center;
+  color: var(--color-ink-muted); font-size: var(--text-caption); cursor: pointer; overflow: hidden;
+}
+.thumb.selected { border: 2px solid var(--color-accent); background: color-mix(in srgb, var(--color-accent) 10%, var(--color-surface)); }
+.thumb .corner { position: absolute; top: 6px; left: 6px; }
+.thumb .pageno { position: absolute; bottom: 6px; right: 8px; color: var(--color-ink-sub); }
+
+/* 表格（账本） */
+table.ledger { width: 100%; border-collapse: separate; border-spacing: 0; border: 1px solid var(--color-border); box-shadow: var(--shadow-card); background: var(--color-surface); border-radius: var(--radius-lg); overflow: hidden; }
+table.ledger th { background: var(--color-surface-alt); color: var(--color-ink-sub); font-weight: 500; text-align: left; padding: var(--spacing-sm) var(--spacing-md); font-size: var(--text-body-sm); }
+table.ledger td { padding: var(--spacing-sm) var(--spacing-md); border-top: 1px solid var(--color-ledger-divider); }
+
+.divider { height: 1px; background: var(--color-divider); border: 0; }
+
+/* 空态 / 错误态 / Toast */
+.empty { text-align: center; padding: var(--spacing-xl); color: var(--color-ink-sub); }
+.error-box { background: var(--color-danger-bg); color: var(--color-danger-ink); border-radius: var(--radius-md); padding: var(--spacing-md); }
+.toast {
+  display: inline-flex; align-items: center; gap: var(--spacing-sm); background: var(--color-surface);
+  border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--spacing-sm) var(--spacing-md);
+  box-shadow: var(--shadow-overlay);
+}
+/* v2：分组色带与两类胶囊 */
+.band { background: var(--color-surface-band); border: 1px solid var(--color-divider); border-radius: var(--radius-xl); padding: 24px; }
+.card-interactive, .thumb { box-shadow: var(--shadow-card); transition: transform var(--dur-fast), box-shadow var(--dur-fast); }
+.card-interactive:hover, .thumb:not(.cursor-not-allowed):hover { transform: translateY(-2px); box-shadow: var(--shadow-hover); }
+.tabs { display: inline-flex; flex-wrap: wrap; gap: 6px; padding: 4px; border-radius: 999px; background: var(--color-surface-alt); border: 1px solid var(--color-border); }
+.tabs > button { border-radius: 999px; color: var(--color-ink-sub); background: transparent; border-color: transparent; }
+.tabs > button[aria-selected="true"], .tabs > button[aria-pressed="true"], .tabs > button.is-active { background: var(--color-surface); color: var(--color-accent-tint-ink); box-shadow: var(--shadow-card); }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chips > button, button.chip { border: 1px solid transparent; border-radius: 999px; background: var(--color-surface-tag); color: var(--color-accent-tint-ink); padding: 6px 14px; font: inherit; cursor: pointer; }
+.chips > button[aria-pressed="true"], .chips > button.is-active, button.chip[aria-pressed="true"] { background: linear-gradient(92deg, var(--color-brand-grad-from), var(--color-brand-grad-to)); color: #fff; box-shadow: 0 6px 16px rgba(32,104,240,.28); }
+.hero { position: relative; border-radius: var(--radius-xl); border: 1px solid #DBE8FB; padding: 40px 44px 56px; background: radial-gradient(130% 150% at 86% 6%, #D6E8FF 0%, #E6F1FF 34%, #F3F9FF 62%, #FFFFFF 100%); box-shadow: var(--shadow-card); overflow: hidden; }
+.hero::after { content: ""; position: absolute; pointer-events: none; right: -140px; top: -170px; width: 420px; height: 420px; border-radius: 50%; background: radial-gradient(circle at 34% 66%, rgba(59,141,247,.26), rgba(40,160,248,.05) 60%, transparent 72%); }
+.hero-content { position: relative; z-index: 3; max-width: 720px; }
+@media (min-width: 1200px) { .hero-content { max-width: min(720px, calc(100% - 400px)); } }
+@media (max-width: 900px) { .hero::after { opacity: .5; } }
+.hero h1 { font-size: clamp(22px, 2.4vw, 29px); line-height: 1.35; }
+.quick { margin-top: -30px; position: relative; z-index: 2; display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px; padding: 0 16px; }
+.quick > button { display: flex; align-items: center; gap: 11px; text-align: left; font: inherit; cursor: pointer; padding: 16px; }
+.quick-icon { display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; flex: none; border-radius: var(--radius-md); background: var(--color-surface-tag); color: var(--color-accent-tint-ink); }
+.provider-trigger { border-radius: 999px; background: var(--color-surface-band); border-color: var(--color-border); height: auto; min-height: 32px; flex-wrap: wrap; padding: 4px 12px; }
+.provider-trigger .status { display: inline-flex; align-items: center; gap: 6px; background: transparent; }
+.provider-trigger .status::before { content: ""; width: 6px; height: 6px; flex: none; border-radius: 50%; background: currentColor; }
+.brand-mark { background: linear-gradient(92deg, var(--color-brand-grad-from), var(--color-brand-grad-to)); box-shadow: 0 4px 12px rgba(32,104,240,.28); }
+.metric-value { font-size: 26px; }
+[data-theme="dark"] .hero { background: radial-gradient(130% 150% at 86% 6%, var(--color-surface-tag), var(--color-surface-band) 62%, var(--color-surface)); border-color: var(--color-border-strong); }
+@media (max-width: 1100px) { .quick { grid-template-columns: repeat(2,minmax(0,1fr)); } }
+@media (max-width: 640px) { .hero { padding: 24px 20px 54px; } .quick { padding: 0 8px; gap: 8px; } .quick > button { padding: 12px; } .band { padding: 16px; } }
+button.chip:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+button.chip:disabled { opacity: .5; cursor: not-allowed; }
+@media (prefers-reduced-motion: reduce) { .card-interactive:hover, .thumb:hover { transform: none; } }
+
+
+/* —— 预览页自身的排版（不属于规范）—— */
+.wrap { max-width: 1180px; margin: 0 auto; padding: 32px 24px 96px; }
+h1.page { font-size: var(--text-h1); margin: 0 0 4px; }
+.page-sub { color: var(--color-ink-sub); margin: 0 0 8px; }
+section { margin-top: 40px; }
+section > h2 { font-size: var(--text-h2); margin: 0 0 4px; }
+section > .hint { color: var(--color-ink-sub); font-size: var(--text-body-sm); margin: 0 0 16px; }
+.grid { display: grid; gap: 16px; }
+.row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+.swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 12px; }
+.sw { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 8px; }
+.sw-chip { height: 44px; border-radius: var(--radius-sm); border: 1px solid var(--color-border); }
+.sw-name { font-size: var(--text-caption); margin-top: 6px; }
+.sw-hex { font-size: var(--text-caption); color: var(--color-ink-sub); }
+.cols-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.cols-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.code { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md);
+        padding: 16px; overflow: auto; font-family: var(--font-mono); font-size: 12px; line-height: 1.6; color: var(--color-ink-sub); }
+.toolbar { position: sticky; top: 0; z-index: 9; background: color-mix(in srgb, var(--color-neutral) 88%, transparent);
+           backdrop-filter: blur(8px); border-bottom: 1px solid var(--color-border); padding: 10px 0; }
+</style>
+</head>
+<body>
+<div class="toolbar"><div class="wrap" style="padding-top:0;padding-bottom:0;display:flex;gap:12px;align-items:center">
+  <strong>DeckForge UI 规范预览</strong>
+  <span class="tag">浅色为主</span>
+  <span class="num" style="color:var(--color-ink-sub)">27 色 · 25 组件</span>
+  <span style="flex:1"></span>
+  <button class="btn btn-secondary" onclick="document.documentElement.toggleAttribute('data-theme');var d=document.documentElement.hasAttribute('data-theme');document.documentElement.setAttribute('data-theme', d?'dark':'light')">切换明/暗（演示）</button>
+</div></div>
+
+<div class="wrap">
+  <h1 class="page">DeckForge 界面设计规范</h1>
+  <p class="page-sub">浅色为主的企业级蓝调工作台 · 令牌逐像素取自参考图 · 卡片柔和投影 · 色带分层 · 保留暗色</p>
+
+  <section>
+    <h2>1 · 颜色令牌（27 个）</h2>
+    <p class="hint">改版同步 <code>ui-design/tokens.json</code> 与生成器模板 并重导出，此处与组件自动同步。</p>
+    <div class="swatches"><div class="sw"><div class="sw-chip" style="background:#2068F0"></div><div class="sw-name">primary</div><div class="sw-hex num">#2068F0</div></div>
+<div class="sw"><div class="sw-chip" style="background:#5A6B87"></div><div class="sw-name">secondary</div><div class="sw-hex num">#5A6B87</div></div>
+<div class="sw"><div class="sw-chip" style="background:#28A0F8"></div><div class="sw-name">tertiary</div><div class="sw-hex num">#28A0F8</div></div>
+<div class="sw"><div class="sw-chip" style="background:#F1F6FD"></div><div class="sw-name">neutral</div><div class="sw-hex num">#F1F6FD</div></div>
+<div class="sw"><div class="sw-chip" style="background:#ffffff"></div><div class="sw-name">surface</div><div class="sw-hex num">#FFFFFF</div></div>
+<div class="sw"><div class="sw-chip" style="background:#eff4fd"></div><div class="sw-name">surface-alt</div><div class="sw-hex num">#EFF4FD</div></div>
+<div class="sw"><div class="sw-chip" style="background:#EAF3FF"></div><div class="sw-name">surface-tag</div><div class="sw-hex num">#EAF3FF</div></div>
+<div class="sw"><div class="sw-chip" style="background:#E3EBF9"></div><div class="sw-name">border</div><div class="sw-hex num">#E3EBF9</div></div>
+<div class="sw"><div class="sw-chip" style="background:#EBF2FE"></div><div class="sw-name">divider</div><div class="sw-hex num">#EBF2FE</div></div>
+<div class="sw"><div class="sw-chip" style="background:#101828"></div><div class="sw-name">ink</div><div class="sw-hex num">#101828</div></div>
+<div class="sw"><div class="sw-chip" style="background:#5A6B87"></div><div class="sw-name">ink-sub</div><div class="sw-hex num">#5A6B87</div></div>
+<div class="sw"><div class="sw-chip" style="background:#64748F"></div><div class="sw-name">ink-muted</div><div class="sw-hex num">#64748F</div></div>
+<div class="sw"><div class="sw-chip" style="background:#1D5FD8"></div><div class="sw-name">accent-tint-ink</div><div class="sw-hex num">#1D5FD8</div></div>
+<div class="sw"><div class="sw-chip" style="background:#3B8DF7"></div><div class="sw-name">accent</div><div class="sw-hex num">#3B8DF7</div></div>
+<div class="sw"><div class="sw-chip" style="background:#2068F0"></div><div class="sw-name">accent-strong</div><div class="sw-hex num">#2068F0</div></div>
+<div class="sw"><div class="sw-chip" style="background:#e8ffea"></div><div class="sw-name">success-bg</div><div class="sw-hex num">#E8FFEA</div></div>
+<div class="sw"><div class="sw-chip" style="background:#00831f"></div><div class="sw-name">success-ink</div><div class="sw-hex num">#00831F</div></div>
+<div class="sw"><div class="sw-chip" style="background:#fff7e8"></div><div class="sw-name">warn-bg</div><div class="sw-hex num">#FFF7E8</div></div>
+<div class="sw"><div class="sw-chip" style="background:#b05600"></div><div class="sw-name">warn-ink</div><div class="sw-hex num">#B05600</div></div>
+<div class="sw"><div class="sw-chip" style="background:#ffece8"></div><div class="sw-name">danger-bg</div><div class="sw-hex num">#FFECE8</div></div>
+<div class="sw"><div class="sw-chip" style="background:#c63333"></div><div class="sw-name">danger-ink</div><div class="sw-hex num">#C63333</div></div>
+<div class="sw"><div class="sw-chip" style="background:#c64676"></div><div class="sw-name">badge-from</div><div class="sw-hex num">#C64676</div></div>
+<div class="sw"><div class="sw-chip" style="background:#be54de"></div><div class="sw-name">badge-to</div><div class="sw-hex num">#BE54DE</div></div>
+<div class="sw"><div class="sw-chip" style="background:#F7FAFF"></div><div class="sw-name">surface-band</div><div class="sw-hex num">#F7FAFF</div></div>
+<div class="sw"><div class="sw-chip" style="background:#D6E4F7"></div><div class="sw-name">border-strong</div><div class="sw-hex num">#D6E4F7</div></div>
+<div class="sw"><div class="sw-chip" style="background:#2E6BF2"></div><div class="sw-name">brand-grad-from</div><div class="sw-hex num">#2E6BF2</div></div>
+<div class="sw"><div class="sw-chip" style="background:#3E92F8"></div><div class="sw-name">brand-grad-to</div><div class="sw-hex num">#3E92F8</div></div></div>
+  </section>
+
+  <section>
+    <h2>2 · 排版</h2>
+    <p class="hint">正文基准 14px；数字继承正文字体，仅启用 tnum 对齐。</p>
+    <div class="card"><table class="ledger">
+      <thead><tr><th style="width:110px">令牌</th><th>示例</th><th style="width:180px">规格</th></tr></thead>
+      <tbody><tr><td class="num">h1</td><td style="font-family:PingFang SC;font-size:1.75rem;font-weight:600">DeckForge 智能 PPT 生成工作台 / 0123456789</td><td class="num">1.75rem · 600</td></tr>
+<tr><td class="num">h2</td><td style="font-family:PingFang SC;font-size:1.25rem;font-weight:600">DeckForge 智能 PPT 生成工作台 / 0123456789</td><td class="num">1.25rem · 600</td></tr>
+<tr><td class="num">h3</td><td style="font-family:PingFang SC;font-size:1rem;font-weight:600">DeckForge 智能 PPT 生成工作台 / 0123456789</td><td class="num">1rem · 600</td></tr>
+<tr><td class="num">body-md</td><td style="font-family:PingFang SC;font-size:0.875rem;font-weight:400">DeckForge 智能 PPT 生成工作台 / 0123456789</td><td class="num">0.875rem · 400</td></tr>
+<tr><td class="num">body-sm</td><td style="font-family:PingFang SC;font-size:0.8125rem;font-weight:400">DeckForge 智能 PPT 生成工作台 / 0123456789</td><td class="num">0.8125rem · 400</td></tr>
+<tr><td class="num">caption</td><td style="font-family:PingFang SC;font-size:0.75rem;font-weight:400">DeckForge 智能 PPT 生成工作台 / 0123456789</td><td class="num">0.75rem · 400</td></tr></tbody>
+    </table></div>
+  </section>
+
+  <section class="hero">
+    <div class="hero-content">
+      <h2>蓝色云平台风 · v2</h2>
+      <p class="page-sub">Hero 渐变带、柔和投影与成组色带；数字继承正文，页脚保持浅色。</p>
+    </div>
+  </section>
+  <section class="band">
+    <h2>3 · 按钮</h2>
+    <p class="hint">主按钮填充用 <code>primary #2068F0</code>；主按钮采用品牌渐变；<code>accent #3B8DF7</code> 只用于图形，不做白字底色。</p>
+    <div class="row">
+      <button class="btn btn-primary">开始生成 ›</button>
+      <button class="btn btn-secondary">详情/取消</button>
+      <button class="btn btn-ghost">重新生成</button>
+      <button class="btn btn-primary" disabled>未配置模型</button>
+      <button class="btn btn-primary is-disabled"><span class="spinner">◌</span> 生成中…</button>
+    </div>
+  </section>
+
+  <section class="band">
+    <h2>4 · 标签 / 角标</h2>
+    <div class="tabs" style="margin:12px 0"><button class="btn" aria-pressed="true">已选页签</button><button class="btn" aria-pressed="false">其他页签</button></div>
+    <div class="chips" style="margin-bottom:12px"><button aria-pressed="true">已选筛选</button><button aria-pressed="false">其他筛选</button></div>
+    <div class="row">
+      <span class="tag">AI 写作</span><span class="tag">报告生成</span><span class="tag">智能分析</span>
+      <span class="badge">旗舰产品</span><span class="badge">上新</span>
+    </div>
+  </section>
+
+  <section>
+    <h2>5 · 卡片（风格包示例）</h2>
+    <div class="cols-3">
+      <div class="card"><h3 class="card-title">深蓝光感科技发布风</h3>
+        <p class="card-desc">发布会 / 技术方案 · 深底冷蓝渐变</p>
+        <div class="row"><span class="tag">科技</span><span class="tag">深色</span><span class="badge">热门</span></div>
+        <p style="color:var(--color-ink-sub);font-size:var(--text-caption);margin:16px 0 12px">适用于 46 个页面 · 3 张预览</p>
+        <button class="btn btn-primary">选用</button></div>
+      <div class="card"><h3 class="card-title">商务蓝金汇报风</h3>
+        <p class="card-desc">政务 / 国央企汇报 · 白底衬线标题 + 细金线</p>
+        <div class="row"><span class="tag">商务</span><span class="tag">汇报</span></div>
+        <p style="color:var(--color-ink-sub);font-size:var(--text-caption);margin:16px 0 12px">适用于 32 个页面 · 3 张预览</p>
+        <button class="btn btn-secondary">选用</button></div>
+      <div class="card"><h3 class="card-title">医疗青蓝专业风</h3>
+        <p class="card-desc">临床 / 护理 / 培训 · 洁净白底 + 青蓝主色</p>
+        <div class="row"><span class="tag">医疗</span><span class="tag">学术</span><span class="badge">推荐</span></div>
+        <p style="color:var(--color-ink-sub);font-size:var(--text-caption);margin:16px 0 12px">适用于 28 个页面 · 3 张预览</p>
+        <button class="btn btn-secondary">选用</button></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>6 · 表单</h2>
+    <div class="cols-2">
+      <div class="card"><label class="metric-label">DeepSeek API Key</label>
+        <input class="input" placeholder="sk-… （留空则仅文案梳理不可用）" style="margin-top:6px">
+        <p class="hint" style="margin:8px 0 0">已加密存储，回显仅显示 <code class="num">sk-****1234</code></p></div>
+      <div class="card"><label class="metric-label">生图供应商</label>
+        <input class="input" value="OpenAI gpt-image-2（对标同源）" style="margin-top:6px">
+        <p class="hint" style="margin:8px 0 0">切换不影响已完成的项目；失败自动轮换下一家</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>7 · 步骤条（6 步流程）</h2>
+    <p class="hint">已完成步骤可回跳；<code>⑤ 生成结果</code> 后另有可选的 <code>⑥ 转可编辑</code>（用户手动触发）。</p>
+    <div class="card"><div class="steps">
+      <span class="step done">① 上传内容 ✓</span><span class="step-sep">›</span>
+      <span class="step done">② 页面确认 ✓</span><span class="step-sep">›</span>
+      <span class="step done">③ 内容梳理 ✓</span><span class="step-sep">›</span>
+      <span class="step active">④ 选择风格（进行中）</span><span class="step-sep">›</span>
+      <span class="step pending">⑤ 生成结果</span><span class="step-sep">›</span>
+      <span class="step pending">⑥ 转可编辑</span>
+    </div>
+    <div style="margin-top:16px"><div class="progress"><i style="width:62%"></i></div>
+      <p class="hint" style="margin-top:8px">已完成 <span class="num">8/13</span> 页 · 预计剩余 <span class="num">00:42</span></p></div>
+    <div class="row" style="margin-top:12px"><span class="step error">③ 内容梳理 · 失败（点击重试）</span></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>8 · 缩略图网格（含可编辑 / 图片直通标记）</h2>
+    <p class="hint">可编辑性与失败态**必须用文字角标**明示，不得只靠颜色。</p>
+    <div class="card"><div class="thumb-grid">
+      <div class="thumb selected"><span class="corner tag">已选</span>P1<span class="pageno num">1/13</span></div>
+      <div class="thumb"><span class="corner status status-success">可编辑</span>P2<span class="pageno num">2/13</span></div>
+      <div class="thumb"><span class="corner status status-info">图片直通</span>P3<span class="pageno num">3/13</span></div>
+      <div class="thumb"><span class="corner status status-warn">生成中</span>P4<span class="pageno num">4/13</span></div>
+      <div class="thumb"><span class="corner status status-danger">失败</span>P5<span class="pageno num">5/13</span></div>
+      <div class="thumb">P6<span class="pageno num">6/13</span></div>
+    </div>
+    <div class="row" style="margin-top:16px">
+      <button class="btn btn-primary">转可编辑 PPTX（已选 1 页）</button>
+      <button class="btn btn-secondary">换风格</button>
+      <button class="btn btn-secondary">下载图片版</button>
+      <span class="hint" style="margin:0">预计耗时 <span class="num">6s</span> · 成本 <span class="num">¥0.00</span>（本地 OCR）</span>
+    </div></div>
+  </section>
+
+  <section>
+    <h2>9 · 状态胶囊 / 成本揭示 / 账本</h2>
+    <div class="row" style="margin-bottom:16px">
+      <span class="status status-success">成功</span><span class="status status-warn">配额不足</span>
+      <span class="status status-danger">调用失败</span><span class="status status-info">复用历史结果</span>
+    </div>
+    <div class="cols-2">
+      <div class="card"><div class="row" style="gap:32px">
+        <div class="metric"><span class="metric-label">本页成本</span><span class="metric-value num">¥0.50</span></div>
+        <div class="metric"><span class="metric-label">本月累计</span><span class="metric-value num">¥12.86</span></div>
+        <div class="metric"><span class="metric-label">耗时</span><span class="metric-value num">7.4s</span></div>
+      </div>
+      <p class="hint" style="margin:12px 0 0">模型 <code>openai_official · gpt-image-2 · 2K</code>（每次生成都记录，见 D19）</p></div>
+      <div class="card" style="padding:0;overflow:hidden"><table class="ledger">
+        <thead><tr><th>时间</th><th>动作</th><th>模型</th><th style="text-align:right">金额</th></tr></thead>
+        <tbody>
+          <tr><td class="num">10:42</td><td>生成 P1–P13</td><td class="num">gpt-image-2·2K</td><td class="num" style="text-align:right">¥6.50</td></tr>
+          <tr><td class="num">10:43</td><td>文案梳理</td><td class="num">deepseek-v4-pro</td><td class="num" style="text-align:right">¥0.06</td></tr>
+          <tr><td class="num">10:51</td><td>转可编辑 ×1</td><td class="num">本地 OCR</td><td class="num" style="text-align:right">¥0.00</td></tr>
+        </tbody></table></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>10 · 空状态 / 错误态 / Toast</h2>
+    <div class="cols-3">
+      <div class="card"><div class="empty">
+        <div style="font-size:32px">◫</div>
+        <p class="card-title" style="font-size:var(--text-h3)">还没有项目</p>
+        <p class="card-desc">导入一份文档，或按页录入内容开始</p>
+        <button class="btn btn-primary">导入文档</button></div></div>
+      <div class="card"><div class="error-box">
+        <strong>生图模型未配置</strong>
+        <p style="margin:8px 0">缺少 <code class="num">OPENAI_API_KEY</code>。到「设置 → 模型与密钥」填写后点「连通性测试」即可。</p>
+        <div class="row"><button class="btn btn-secondary">去填写</button><button class="btn btn-ghost">复制详情</button></div></div></div>
+      <div class="card"><div class="row" style="flex-direction:column;align-items:stretch;gap:12px">
+        <div class="toast"><span class="status status-success">成功</span> 13 页已生成，用时 <span class="num">58s</span></div>
+        <div class="toast"><span class="status status-warn">注意</span> 第 5 页文字校验未通过</div>
+        <div class="toast"><span class="status status-danger">失败</span> 节点超时，已自动切换供应商</div>
+      </div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>11 · 暗色（Phase 2 演示）</h2>
+    <p class="hint">仅令牌级覆盖：暗色把 <code>primary</code> 压深到 <code>#3C74C9</code>（白字 4.63:1），<code>accent</code> 保持 <code>#4C93FF</code> 供图形使用。</p>
+    <div class="card" data-theme="dark" style="background:var(--color-neutral);border-color:var(--color-border)">
+      <div class="row">
+        <span class="step active">④ 选择风格</span><span class="step done">③ 内容梳理 ✓</span><span class="step pending">⑤ 生成结果</span>
+        <button class="btn btn-primary">开始生成 ›</button>
+        <button class="btn btn-secondary">取消</button>
+        <span class="tag">科技</span><span class="status status-success">可编辑</span><span class="status status-warn">生成中</span>
+      </div>
+      <p style="color:var(--color-ink-sub);margin:12px 0 0">暗色下的正文与辅助文字对比度均已 ≥4.5:1（实现时仍须跑 CLI lint 复核）。</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>12 · 接入代码（复制即用）</h2>
+    <p class="hint">Tailwind v4：入口 CSS <code>@import "./tailwind.theme.css";</code>；非 Tailwind 项目直接 <code>@import "./app.css"</code>。</p>
+    <div class="code">/* ui-design/tailwind.theme.css（节选） */
+@theme {
+  --color-neutral: #F1F6FD;       /* 页面底 */
+  --color-surface: #ffffff;       /* 卡片 */
+  --color-border: #E3EBF9;         /* 描边 */
+  --color-ink: #101828;               /* 主文字 */
+  --color-primary: #2068F0;       /* 按钮填充 / 白底蓝字 */
+  --color-accent: #3B8DF7;         /* 图标 / 描边 / 选中（不做白字底色） */
+  --color-accent-tint-ink: #1D5FD8; /* 浅蓝底上的蓝字 */
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;  /* 数字 */
+  --radius-md: 12px;
+}</div>
+  </section>
+</div>
+</body>
+</html>

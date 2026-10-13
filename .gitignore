@@ -1,0 +1,22 @@
+# Runtime state and secrets
+.env
+config/.env
+data/
+*.db
+*.db-shm
+*.db-wal
+
+# Local dependencies and build outputs
+.venv/
+web/node_modules/
+web/dist/
+server/pptx/node_modules/
+
+# Python / Node 缓存
+__pycache__/
+*.py[cod]
+
+# OS/editor files
+.DS_Store
+.idea/
+.vscode/

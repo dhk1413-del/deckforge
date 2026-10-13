@@ -1,0 +1,78 @@
+# DeckForge 图像生成 provider 预置配置（D9/D23/D24）
+# GuaiHub 与阿里百炼预置；api_key 留空，由用户在设置页或 .env 里填写（填完点「连通性测试」即可用）。
+# 价格字段为 2026-09-16 官方文档实测值；标注「待核对/待确认」的项在实现阶段补正。
+
+version: 3
+default_priority: [guaihub, dashscope]
+# 选择顺序：GuaiHub 优先，其次阿里百炼；无密钥时使用本地兜底
+common:
+  aspect_ratio: "16:9"
+  size_map:
+    "1K": { long_edge: 1024 }
+    "2K": { long_edge: 2048 }
+    "4K": { long_edge: 4096 }
+  retry: 1
+  timeout_seconds: 180
+  record: [provider, model, size, unit_price_cny, latency_ms, ok]
+
+# ── 网络：境外模型走代理；国内模型绕过代理 ──
+network:
+  mode: "http_proxy"                    # http_proxy | tun | none
+  http_proxy: "http://127.0.0.1:7897"   # Clash Verge（实测已打通 OpenAI 与 Gemini）
+  # ⚠️ 若改用 nano 等 **TUN** 客户端接管流量：mode 改 "tun"，并**清空 HTTP_PROXY/HTTPS_PROXY**
+  #    （TUN 在系统路由层生效，再设 HTTP 代理会让境外请求反而失败）
+  # 实测状态（2026-09-17 复测 10:46 与 10:49，结论一致）——**采纳本方案**：
+  #   Clash Verge 7897 稳定可用（OpenAI 401 / Gemini 403 / Google 204）；
+  #   nano（v1.0.10）TUN 未接管流量（默认路由仍在 en0，直连出口 IP 仍为昆明移动）→ 备用
+
+  domestic_bypass_proxy: true           # 国内三家/DeepSeek 调用时 proxies={} 或 --noproxy
+  verify_script: "tools/provider_reachability.sh"
+
+providers:
+
+  # ── OpenAI 兼容中转 ───────────────────────────────
+  - id: guaihub
+    enabled: true
+    label: "GuaiHub · GPT Image 2"
+    base_url: "https://api.guaihub.cc/v1"
+    api_style: "openai_compatible"
+    needs_proxy: true
+    api_key: ""
+    api_key_env: "GUAIHUB_API_KEY"
+    models:
+      - id: "gpt-image-2"
+        sizes: ["1K", "2K", "4K"]
+        unit_price_cny: null
+    default_model: "gpt-image-2"
+    default_size: "2K"
+    notes: "OpenAI 兼容：Bearer 鉴权、GET /v1/models、POST /v1/images/generations。可在设置页按 GuaiHub 控制台给出的 API Base URL 覆盖。"
+
+  # ── 国内（直连，绕过代理）──────────────────────
+  - id: dashscope
+    enabled: true
+    label: "阿里百炼 Qwen-Image"
+    base_url: "https://dashscope.aliyuncs.com/api/v1"
+    api_style: "dashscope_sdk"
+    needs_proxy: false
+    api_key: ""                          # ← 用户填写（DASHSCOPE_API_KEY）
+    api_key_env: "DASHSCOPE_API_KEY"
+    models:
+      - id: "qwen-image-3.0-pro"
+        sizes: ["1K", "2K"]
+        unit_price_cny: { "1K": 0.25, "2K": 0.5 }
+      - id: "qwen-image-3.0"
+        sizes: ["1K"]
+        unit_price_cny: { "1K": 0.18 }
+      - id: "wan2.7-image-pro"
+        sizes: ["1K", "2K"]
+        unit_price_cny: null
+    default_model: "qwen-image-3.0-pro"
+    default_size: "2K"
+    free_quota: "qwen-image 系 100 张 / 90 天；3.0 系输入输出共 10 张"
+    notes: "计费=输入图单价×输入张数 + 输出图单价×输出张数；请求失败不计费。官方强调超长文字渲染。"
+
+# 已排除（不再配置）
+excluded:
+  - id: zhipu
+    label: "智谱 CogView-4"
+    reason: "D23：单价最低（0.06 元/次）但分辨率档位与复杂版式能力最弱，不适配整页 PPT 级出图"
