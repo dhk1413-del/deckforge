@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="620" viewBox="0 0 1080 620" role="img" aria-label="DeckForge 系统架构">
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#94A3B8"/></marker></defs>
+<rect width="100%%" height="100%%" fill="#FFFFFF"/>
+<text x="24" y="34" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="17" font-weight="700" fill="#101828">DeckForge 系统架构</text>
+<rect x="40" y="80" width="250" height="130" rx="12" fill="#EAF3FF" stroke="#1E78FA"/>
+<text x="165.0" y="106" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="15" font-weight="700" fill="#101828" text-anchor="middle">浏览器界面</text>
+<text x="165.0" y="126" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="12" fill="#5A6B87" text-anchor="middle">React 19 + TypeScript + Tailwind v4</text>
+<text x="165.0" y="142" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="12" fill="#5A6B87" text-anchor="middle">构建产物由后端托管</text>
+<text x="165.0" y="158" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="12" fill="#5A6B87" text-anchor="middle">（浅色为主，中文界面）</text>
+<rect x="40" y="250" width="250" height="120" rx="12" fill="#F5F8FF" stroke="#D6E4F7"/>
+<text x="165.0" y="276" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="15" font-weight="700" fill="#101828" text-anchor="middle">单文件离线网页</text>
+<text x="165.0" y="296" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="12" fill="#5A6B87" text-anchor="middle">deckforge-standalone.html</text>
+<text x="165.0" y="312" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="12" fill="#5A6B87" text-anchor="middle">零依赖，数据存 localStorage</text>
+<rect x="380" y="80" width="300" height="130" rx="12" fill="#F5F8FF" stroke="#D6E4F7"/>
+<text x="530.0" y="106" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="15" font-weight="700" fill="#101828" text-anchor="middle">FastAPI 服务（本机常驻）</text>
+<text x="530.0" y="126" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="12" fill="#5A6B87" text-anchor="middle">/api/* 路由层 · main.py</text>
+<text x="530.0" y="142" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="12" fill="#5A6B87" text-anchor="middle">作业与流水线 · pipeline.py</text>
+<text x="530.0" y="158" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="12" fill="#5A6B87" text-anchor="middle">SSE 逐页进度 / 取消</text>
+<rect x="380" y="250" width="300" height="120" rx="12" fill="#F5F8FF" stroke="#D6E4F7"/>
+<text x="530.0" y="276" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="15" font-weight="700" fill="#101828" text-anchor="middle">渲染与导出</text>
+<text x="530.0" y="296" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="12" fill="#5A6B87" text-anchor="middle">render.py 本地兜底渲染</text>
+<text x="530.0" y="312" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="12" fill="#5A6B87" text-anchor="middle">pptx/render_native.mjs（PptxGenJS）</text>
+<text x="530.0" y="328" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="12" fill="#5A6B87" text-anchor="middle">export_pptx.py 图片版装配</text>
+<rect x="380" y="410" width="300" height="110" rx="12" fill="#F5F8FF" stroke="#D6E4F7"/>
+<text x="530.0" y="436" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="15" font-weight="700" fill="#101828" text-anchor="middle">数据与文件</text>
+<text x="530.0" y="456" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="12" fill="#5A6B87" text-anchor="middle">SQLite（WAL）· data/deckforge.db</text>
+<text x="530.0" y="472" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="12" fill="#5A6B87" text-anchor="middle">data/files/&lt;项目&gt;/ 原稿与产物</text>
+<rect x="760" y="80" width="280" height="130" rx="12" fill="#F5F8FF" stroke="#D6E4F7"/>
+<text x="900.0" y="106" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="15" font-weight="700" fill="#101828" text-anchor="middle">文本模型</text>
+<text x="900.0" y="126" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="12" fill="#5A6B87" text-anchor="middle">DeepSeek：内容梳理 / 备注</text>
+<text x="900.0" y="142" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="12" fill="#5A6B87" text-anchor="middle">无 key 时本地规则切页兜底</text>
+<rect x="760" y="240" width="280" height="120" rx="12" fill="#F5F8FF" stroke="#D6E4F7"/>
+<text x="900.0" y="266" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="15" font-weight="700" fill="#101828" text-anchor="middle">视觉模型</text>
+<text x="900.0" y="286" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="12" fill="#5A6B87" text-anchor="middle">Qwen-VL 等 OpenAI 兼容端点</text>
+<text x="900.0" y="302" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="12" fill="#5A6B87" text-anchor="middle">无 key 时本地色板/插画分析</text>
+<rect x="760" y="390" width="280" height="130" rx="12" fill="#F5F8FF" stroke="#D6E4F7"/>
+<text x="900.0" y="416" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="15" font-weight="700" fill="#101828" text-anchor="middle">生图模型</text>
+<text x="900.0" y="436" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="12" fill="#5A6B87" text-anchor="middle">GuaiHub / 阿里百炼</text>
+<text x="900.0" y="452" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="12" fill="#5A6B87" text-anchor="middle">无 key 时 local_render 兜底（费用 0）</text>
+<line x1="290" y1="145" x2="380" y2="145" stroke="#94A3B8" stroke-width="1.6" marker-end="url(#arrow)"/>
+<text x="335.0" y="139.0" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="11" fill="#5A6B87" text-anchor="middle">HTTP / SSE</text>
+<line x1="290" y1="310" x2="380" y2="310" stroke="#94A3B8" stroke-width="1.6" marker-end="url(#arrow)"/>
+<text x="335.0" y="304.0" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="11" fill="#5A6B87" text-anchor="middle">可选：连接本地后端</text>
+<line x1="680" y1="145" x2="760" y2="145" stroke="#94A3B8" stroke-width="1.6" marker-end="url(#arrow)"/>
+<line x1="680" y1="300" x2="760" y2="300" stroke="#94A3B8" stroke-width="1.6" marker-end="url(#arrow)"/>
+<line x1="680" y1="430" x2="760" y2="455" stroke="#94A3B8" stroke-width="1.6" marker-end="url(#arrow)"/>
+<line x1="530" y1="210" x2="530" y2="250" stroke="#94A3B8" stroke-width="1.6" marker-end="url(#arrow)"/>
+<line x1="530" y1="370" x2="530" y2="410" stroke="#94A3B8" stroke-width="1.6" marker-end="url(#arrow)"/>
+<text x="40" y="560" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="12" fill="#5A6B87" text-anchor="start">铁律：内容归模型、格式归代码；取不到真源就少画一个元素，绝不编造；零 key 全流程可跑通。</text>
+</svg>

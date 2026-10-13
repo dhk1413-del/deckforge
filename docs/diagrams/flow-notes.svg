@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="400" viewBox="0 0 1080 400" role="img" aria-label="独立模块：PPT 备注（给已有 .pptx 逐页写演讲者备注）">
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#94A3B8"/></marker></defs>
+<rect width="100%%" height="100%%" fill="#FFFFFF"/>
+<text x="24" y="34" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="17" font-weight="700" fill="#101828">独立模块：PPT 备注（给已有 .pptx 逐页写演讲者备注）</text>
+<rect x="40" y="90" width="220" height="120" rx="12" fill="#EAF3FF" stroke="#1E78FA"/>
+<text x="150.0" y="116" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="15" font-weight="700" fill="#101828" text-anchor="middle">① 上传 PPTX</text>
+<text x="150.0" y="136" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="12" fill="#5A6B87" text-anchor="middle">秒回页清单</text>
+<text x="150.0" y="152" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="12" fill="#5A6B87" text-anchor="middle">不调用模型、不花钱</text>
+<rect x="300" y="90" width="220" height="120" rx="12" fill="#F5F8FF" stroke="#D6E4F7"/>
+<text x="410.0" y="116" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="15" font-weight="700" fill="#101828" text-anchor="middle">② 画面识别</text>
+<text x="410.0" y="136" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="12" fill="#5A6B87" text-anchor="middle">auto / all / off 三档</text>
+<text x="410.0" y="152" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="12" fill="#5A6B87" text-anchor="middle">逐页结果可核验</text>
+<rect x="560" y="90" width="220" height="120" rx="12" fill="#F5F8FF" stroke="#D6E4F7"/>
+<text x="670.0" y="116" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="15" font-weight="700" fill="#101828" text-anchor="middle">③ 写备注</text>
+<text x="670.0" y="136" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="12" fill="#5A6B87" text-anchor="middle">只依据本页文字+识别结果</text>
+<text x="670.0" y="152" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="12" fill="#5A6B87" text-anchor="middle">可填一句要求让 AI 重写</text>
+<rect x="820" y="90" width="220" height="120" rx="12" fill="#EAF3FF" stroke="#1E78FA"/>
+<text x="930.0" y="116" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="15" font-weight="700" fill="#101828" text-anchor="middle">④ 导出</text>
+<text x="930.0" y="136" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="12" fill="#5A6B87" text-anchor="middle">写回备注栏的副本</text>
+<text x="930.0" y="152" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="12" fill="#5A6B87" text-anchor="middle">原页面内容/版式不动</text>
+<line x1="260" y1="150" x2="300" y2="150" stroke="#94A3B8" stroke-width="1.6" marker-end="url(#arrow)"/>
+<line x1="520" y1="150" x2="560" y2="150" stroke="#94A3B8" stroke-width="1.6" marker-end="url(#arrow)"/>
+<line x1="780" y1="150" x2="820" y2="150" stroke="#94A3B8" stroke-width="1.6" marker-end="url(#arrow)"/>
+<text x="40" y="260" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="12" fill="#5A6B87" text-anchor="start">硬约定：备注内容只能来自该页文本框/表格 + 画面识别；两者皆空就不生成，并说明原因（不允许模型凭常识补全）。</text>
+<text x="40" y="286" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="12" fill="#5A6B87" text-anchor="start">渲染 PDF 页数必须等于 pptx 页数，否则拒绝继续——防止备注错页；导出前会再校验一次。</text>
+<text x="40" y="312" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="12" fill="#5A6B87" text-anchor="start">原备注默认保留，AI 备注以「【演讲备注】」分隔追加在下方；零 key 时上传/解析可用，识别与写作会明确提示未配置。</text>
+</svg>

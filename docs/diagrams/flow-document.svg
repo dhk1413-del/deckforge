@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="430" viewBox="0 0 1080 430" role="img" aria-label="流程一：文档导入生成（把 Markdown / TXT / DOCX / PDF / PPTX 变成整套 PPT）">
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#94A3B8"/></marker></defs>
+<rect width="100%%" height="100%%" fill="#FFFFFF"/>
+<text x="24" y="34" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="17" font-weight="700" fill="#101828">流程一：文档导入生成（把 Markdown / TXT / DOCX / PDF / PPTX 变成整套 PPT）</text>
+<rect x="40" y="90" width="180" height="130" rx="12" fill="#EAF3FF" stroke="#1E78FA"/>
+<text x="130.0" y="116" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="15" font-weight="700" fill="#101828" text-anchor="middle">① 输入内容</text>
+<text x="130.0" y="136" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="12" fill="#5A6B87" text-anchor="middle">上传文档或粘贴文本</text>
+<text x="130.0" y="152" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="12" fill="#5A6B87" text-anchor="middle">解析出全文与建议页数</text>
+<rect x="242" y="90" width="180" height="130" rx="12" fill="#F5F8FF" stroke="#D6E4F7"/>
+<text x="332.0" y="116" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="15" font-weight="700" fill="#101828" text-anchor="middle">② 页面确认</text>
+<text x="332.0" y="136" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="12" fill="#5A6B87" text-anchor="middle">逐页勾选参与范围</text>
+<text x="332.0" y="152" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="12" fill="#5A6B87" text-anchor="middle">改标题、选版式</text>
+<line x1="220" y1="155" x2="238" y2="155" stroke="#94A3B8" stroke-width="1.6" marker-end="url(#arrow)"/>
+<rect x="444" y="90" width="180" height="130" rx="12" fill="#F5F8FF" stroke="#D6E4F7"/>
+<text x="534.0" y="116" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="15" font-weight="700" fill="#101828" text-anchor="middle">③ 内容确认</text>
+<text x="534.0" y="136" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="12" fill="#5A6B87" text-anchor="middle">逐页核对标题与要点</text>
+<text x="534.0" y="152" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="12" fill="#5A6B87" text-anchor="middle">保存状态/修订冲突可见</text>
+<line x1="422" y1="155" x2="440" y2="155" stroke="#94A3B8" stroke-width="1.6" marker-end="url(#arrow)"/>
+<rect x="646" y="90" width="180" height="130" rx="12" fill="#F5F8FF" stroke="#D6E4F7"/>
+<text x="736.0" y="116" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="15" font-weight="700" fill="#101828" text-anchor="middle">④ 选择风格</text>
+<text x="736.0" y="136" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="12" fill="#5A6B87" text-anchor="middle">风格库或自定义风格包</text>
+<text x="736.0" y="152" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="12" fill="#5A6B87" text-anchor="middle">预览与选择分离</text>
+<line x1="624" y1="155" x2="642" y2="155" stroke="#94A3B8" stroke-width="1.6" marker-end="url(#arrow)"/>
+<rect x="848" y="90" width="180" height="130" rx="12" fill="#F5F8FF" stroke="#D6E4F7"/>
+<text x="938.0" y="116" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="15" font-weight="700" fill="#101828" text-anchor="middle">⑤ 生成结果</text>
+<text x="938.0" y="136" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="12" fill="#5A6B87" text-anchor="middle">逐页出图 + 进度</text>
+<text x="938.0" y="152" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="12" fill="#5A6B87" text-anchor="middle">导出图片版 / 可编辑版</text>
+<line x1="826" y1="155" x2="844" y2="155" stroke="#94A3B8" stroke-width="1.6" marker-end="url(#arrow)"/>
+<text x="40" y="270" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="12" fill="#5A6B87" text-anchor="start">每一步都能刷新/直链（#/wizard/&lt;项目&gt;/&lt;1..5&gt;）；步骤条按真实数据放行，未就绪的步骤会说明缺什么。</text>
+<line x1="130" y1="330" x2="130" y2="250" stroke="#94A3B8" stroke-width="1.6" marker-end="url(#arrow)"/>
+<text x="130.0" y="284.0" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="11" fill="#5A6B87" text-anchor="middle">可回退修改</text>
+<text x="40" y="360" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="12" fill="#5A6B87" text-anchor="start">零 key 时：大纲走本地切页，出图走 local_render 本地兜底（费用 0 元），整条流程与导出照常可用。</text>
+<text x="40" y="386" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="12" fill="#5A6B87" text-anchor="start">细化重建可选：把已生成的图片页交给「精细重建引擎」转成原生可编辑对象（约 13 分钟/页）。</text>
+</svg>

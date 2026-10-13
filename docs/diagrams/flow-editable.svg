@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="430" viewBox="0 0 1080 430" role="img" aria-label="流程三：图片转可编辑（第三方精细重建引擎）">
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#94A3B8"/></marker></defs>
+<rect width="100%%" height="100%%" fill="#FFFFFF"/>
+<text x="24" y="34" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="17" font-weight="700" fill="#101828">流程三：图片转可编辑（第三方精细重建引擎）</text>
+<rect x="40" y="90" width="210" height="120" rx="12" fill="#EAF3FF" stroke="#1E78FA"/>
+<text x="145.0" y="116" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="15" font-weight="700" fill="#101828" text-anchor="middle">① 导入原页</text>
+<text x="145.0" y="136" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="12" fill="#5A6B87" text-anchor="middle">PDF / PNG / JPG / PPTX</text>
+<text x="145.0" y="152" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="12" fill="#5A6B87" text-anchor="middle">逐页渲染成原页图</text>
+<rect x="285" y="90" width="210" height="120" rx="12" fill="#F5F8FF" stroke="#D6E4F7"/>
+<text x="390.0" y="116" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="15" font-weight="700" fill="#101828" text-anchor="middle">② 勾选页面</text>
+<text x="390.0" y="136" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="12" fill="#5A6B87" text-anchor="middle">只转换选中的页</text>
+<text x="390.0" y="152" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="12" fill="#5A6B87" text-anchor="middle">未勾选页永不自动转换</text>
+<rect x="530" y="90" width="210" height="120" rx="12" fill="#F5F8FF" stroke="#D6E4F7"/>
+<text x="635.0" y="116" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="15" font-weight="700" fill="#101828" text-anchor="middle">③ 引擎探测</text>
+<text x="635.0" y="136" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="12" fill="#5A6B87" text-anchor="middle">GET /api/editable-engines</text>
+<text x="635.0" y="152" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="12" fill="#5A6B87" text-anchor="middle">缺 CLI/skill 时如实报错</text>
+<rect x="775" y="90" width="265" height="120" rx="12" fill="#F5F8FF" stroke="#D6E4F7"/>
+<text x="907.5" y="116" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="15" font-weight="700" fill="#101828" text-anchor="middle">④ 逐页重建</text>
+<text x="907.5" y="136" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="12" fill="#5A6B87" text-anchor="middle">prepare → dispatch → page build</text>
+<text x="907.5" y="152" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="12" fill="#5A6B87" text-anchor="middle">→ validate → run finalize</text>
+<rect x="775" y="270" width="265" height="110" rx="12" fill="#EAF3FF" stroke="#1E78FA"/>
+<text x="907.5" y="296" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="15" font-weight="700" fill="#101828" text-anchor="middle">⑤ 产物与校验</text>
+<text x="907.5" y="316" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="12" fill="#5A6B87" text-anchor="middle">页面自带 validation.json</text>
+<text x="907.5" y="332" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="12" fill="#5A6B87" text-anchor="middle">任一页不过 → 整个作业 failed</text>
+<line x1="250" y1="150" x2="285" y2="150" stroke="#94A3B8" stroke-width="1.6" marker-end="url(#arrow)"/>
+<line x1="495" y1="150" x2="530" y2="150" stroke="#94A3B8" stroke-width="1.6" marker-end="url(#arrow)"/>
+<line x1="740" y1="150" x2="775" y2="150" stroke="#94A3B8" stroke-width="1.6" marker-end="url(#arrow)"/>
+<line x1="907" y1="210" x2="907" y2="270" stroke="#94A3B8" stroke-width="1.6" marker-end="url(#arrow)"/>
+<text x="40" y="280" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="12" fill="#5A6B87" text-anchor="start">实测约 13 分钟/页；产物只含所转页面，导出为 /files 下的独立文件。</text>
+<text x="40" y="306" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="12" fill="#5A6B87" text-anchor="start">失败会保留 run 目录与失败明细（页码 / 阶段 / 原因），可 resume=true 复用现场续跑。</text>
+<text x="40" y="356" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, system-ui, sans-serif" font-size="12" fill="#5A6B87" text-anchor="start">与「文档生成」的区别：这里不重新排版，而是把原页的文字与形状重建为可编辑对象。</text>
+</svg>
