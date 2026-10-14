@@ -158,8 +158,7 @@ function TopicPanel() {
       {error && <div className="error-box text-body-sm">{error}</div>}
       {file && <PickedFile file={file} onClear={() => setFile(null)} />}
 
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="text-body-sm text-ink-sub">上传后自动出大纲与页清单，可逐页改标题与布局；风格在「选择风格」那步选。</span>
+      <div className="flex flex-wrap items-center justify-end gap-2">
         <button
           type="button"
           className="btn btn-primary"
