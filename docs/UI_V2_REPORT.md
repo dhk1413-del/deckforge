@@ -129,7 +129,7 @@ diff -rq .backup/ui-v2-20261008-064019/tools    tools        → gen_ui_css.py /
 ## 7. 回滚方式
 
 ```bash
-cd /workspace/智能ppt生成工作台
+cd /path/to/deckforge
 B=.backup/ui-v2-$(cat .backup/LATEST_UI_V2)      # → .backup/ui-v2-20261008-064133（v1 快照）
 rm -rf ui-design web/src tools docs
 cp -a $B/ui-design $B/web/src $B/tools $B/docs .

@@ -106,7 +106,7 @@ Tailwind v4 的 `@theme` 里同时导出这些键，这样 `shadow-card` / `shad
 
 ### Step 0 — 备份（必须先做）
 ```bash
-cd /workspace/智能ppt生成工作台
+cd /path/to/deckforge
 TS=$(date +%Y%m%d-%H%M%S)
 mkdir -p .backup/ui-v2-$TS
 cp -a ui-design web/src tools docs .backup/ui-v2-$TS/
@@ -117,22 +117,22 @@ echo $TS > .backup/LATEST_UI_V2
 ```bash
 export https_proxy=http://127.0.0.1:65532 http_proxy=http://127.0.0.1:65532 all_proxy=socks5://127.0.0.1:65532
 export no_proxy=127.0.0.1,localhost,::1
-timeout 180 codex exec --skip-git-repo-check --sandbox read-only -C /workspace/智能ppt生成工作台 -- "回复：pong"
+timeout 180 codex exec --skip-git-repo-check --sandbox read-only -C /path/to/deckforge -- "回复：pong"
 ```
 - 输出 `pong` → 继续。
 - 报额度/限流错误 → 等 10 分钟重试，最多 3 次；仍失败就**如实汇报并停止**（不要自己顶上去改 `web/src`，用户要求代码改动走 Codex）。
 
 ### Step 2 — 交给 Codex 做全部文件改动
 ```bash
-cd /workspace/智能ppt生成工作台
-codex exec --skip-git-repo-check --sandbox workspace-write -C /workspace/智能ppt生成工作台 \
+cd /path/to/deckforge
+codex exec --skip-git-repo-check --sandbox workspace-write -C /path/to/deckforge \
   -- "$(cat docs/codex-ui-v2-prompt.md)"
 ```
 放到后台跑（单次数分钟到十几分钟），完成后回到本 runbook。
 
 ### Step 3 — 独立复核（Hermes 自己做，不外包）
 ```bash
-cd /workspace/智能ppt生成工作台
+cd /path/to/deckforge
 # 3.1 令牌确实落地
 grep -nE "2068F0|1D5FD8|64748F|F7FAFF|surface-band|shadow-card" ui-design/tokens.json ui-design/app.css | head -40
 # 3.2 生成器可复跑（幂等）
@@ -176,7 +176,7 @@ curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:8641/     # 期望 200
 ## 5. 回滚
 
 ```bash
-cd /workspace/智能ppt生成工作台
+cd /path/to/deckforge
 B=.backup/ui-v2-$(cat .backup/LATEST_UI_V2)
 rm -rf ui-design web/src tools docs
 cp -a $B/ui-design $B/web/src $B/tools $B/docs .
@@ -188,7 +188,7 @@ npm --prefix web run build   # 复原 web/dist
 
 ## 6. 已知坑（照抄，别重新踩）
 
-1. **`tools/gen_ui_css.py` / `tools/gen_ui_preview.py` 里硬编码了旧路径** `~/Desktop/02_同步文件夹/hermes/智能PPT生成工作台/ui-design`（项目已迁到 `/workspace/智能ppt生成工作台`）→ 改成基于 `__file__` 的项目相对路径，否则生成器写不进去。
+1. **`tools/gen_ui_css.py` / `tools/gen_ui_preview.py` 里硬编码了旧路径** `~/Desktop/02_同步文件夹/hermes/智能PPT生成工作台/ui-design`（项目已迁到 `/path/to/deckforge`）→ 改成基于 `__file__` 的项目相对路径，否则生成器写不进去。
 2. `gen_ui_css.py` 会把上下文写到 `/tmp/pm/ui_ctx.json`，`gen_ui_preview.py` 依赖它 → 先确保 `/tmp/pm` 存在，并保持「先 css 后 preview」的顺序。
 3. `server/app/main.py` 的 `app.mount("/", StaticFiles(web/dist))` **必须在所有 API 端点之后**；本次不改后端，但如果手滑动了 `main.py`，务必检查这一条（踩过：美化 v2 端点曾因此全 404）。
 4. 仓库**没有任何 commit**（`git log` 报无提交），不要 `git commit`、不要 `git stash`；差异对照一律用 `.backup/` 里的副本。

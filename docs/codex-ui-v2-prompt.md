@@ -2,15 +2,15 @@
 
 > 用法（在项目根执行，提示词前必须有 `--`）：
 > ```bash
-> cd /workspace/智能ppt生成工作台
-> codex exec --skip-git-repo-check --sandbox workspace-write -C /workspace/智能ppt生成工作台 \
+> cd /path/to/deckforge
+> codex exec --skip-git-repo-check --sandbox workspace-write -C /path/to/deckforge \
 >   -- "$(cat docs/codex-ui-v2-prompt.md)"
 > ```
 > 下面 `---PROMPT---` 之后的内容就是提示词正文。
 
 ---PROMPT---
 
-你是资深前端工程师。项目根：`/workspace/智能ppt生成工作台`（DeckForge —— 自托管「AI 生成整套 PPT」工作台，前端 React 19 + TypeScript + Vite + Tailwind v4，样式令牌集中在 `ui-design/`）。
+你是资深前端工程师。项目根：`/path/to/deckforge`（DeckForge —— 自托管「AI 生成整套 PPT」工作台，前端 React 19 + TypeScript + Vite + Tailwind v4，样式令牌集中在 `ui-design/`）。
 
 ## 本次任务
 把整套前端 UI 从 v1 升级到 **v2「蓝色云平台风」**，参照用户已确认的样式稿 `ui-design/preview-v2.html`。
@@ -50,7 +50,7 @@
 
 ## 自检（必须真的跑，不许声称通过）
 ```bash
-cd /workspace/智能ppt生成工作台
+cd /path/to/deckforge
 .venv/bin/python tools/gen_ui_css.py && .venv/bin/python tools/gen_ui_preview.py   # 幂等、无报错
 npm --prefix web run typecheck                                                    # tsc 零错误
 npm --prefix web run build                                                        # 构建成功
