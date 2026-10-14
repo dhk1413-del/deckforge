@@ -8,7 +8,7 @@ import { useMemo, useRef, useState } from 'react'
 import { ApiError, listNotes, uploadNotesPptx, deleteNotesJob } from '../api'
 import { EmptyState, ErrorState, Loading } from '../components/StateBlock'
 import { useAsync } from '../hooks/useAsync'
-import { cn, cny, fmtTime } from '../lib/format'
+import { cn, fmtTime } from '../lib/format'
 import { Link, navigate } from '../router'
 import type { NotesJob, NotesJobDetail } from '../types'
 
@@ -51,8 +51,7 @@ export function NotesPage() {
       <div>
         <h1 className="m-0 text-h1 font-semibold">PPT 备注</h1>
         <p className="m-0 mt-1 text-ink-sub">
-          上传一份已经做好的 PPT，按每一页的内容自动写演讲者备注，再导出成
-          <span className="text-ink">「备注已填好的同一份 PPT」</span>
+          上传一份已经做好的 PPT，按每一页的内容自动写演讲者备注，再导出
           —— 页面内容、版式、母版一律不动，只写备注栏。
         </p>
       </div>
@@ -119,7 +118,7 @@ export function NotesPage() {
 
       {/* ② 历史任务 */}
       <div className="card">
-        <div className="card-title">之前的任务</div>
+        <div className="card-title">历史任务</div>
         {jobs.loading && <Loading rows={3} label="加载备注任务…" />}
         {jobs.error && <ErrorState error={jobs.error} onRetry={jobs.reload} title="加载失败" compact />}
         {!jobs.loading && !jobs.error && items.length === 0 && (
@@ -132,11 +131,6 @@ export function NotesPage() {
             ))}
           </ul>
         )}
-      </div>
-
-      <div className="text-caption text-ink-sub">
-        提示：备注是「讲稿」，样式与篇幅由内容决定 —— 信息多的页写足，案例/截图页一句话带过；不满意的页可以手改，
-        也可以写一句提示词让 AI 重写。
       </div>
     </div>
   )
@@ -156,7 +150,6 @@ function NoteRow({ job, onDeleted }: { job: NotesJob; onDeleted: () => void }) {
       <span className="text-caption text-ink-sub">
         <span className="num">{job.pages}</span> 页 · 图片页 <span className="num">{job.image_pages}</span>
       </span>
-      {job.cost_cny > 0 && <span className="text-caption text-ink-sub">花费 <span className="num">{cny(job.cost_cny)}</span></span>}
       <span className="flex-1" />
       <span className="text-caption text-ink-sub"><span className="num">{fmtTime(job.created_at)}</span></span>
       <button
