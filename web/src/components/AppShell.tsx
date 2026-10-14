@@ -85,7 +85,6 @@ export function AppShell({ children }: { children: ReactNode }) {
             })}
           </nav>
 
-          <span className="hidden text-body-sm text-ink-sub md:block">{NAV.find((item) => item.match.includes(route.name))?.label}</span>
           <span className="flex-1" />
           <ProviderStatus />
         </header>
