@@ -44,10 +44,10 @@
 /* PPT 美化 / 文档生成 / 图片转可编辑 三条流程共用：FlowKit 步骤条（结构与交互统一） */
 .beautify-workbench { padding-bottom: 24px; }
 .beautify-flow-header { padding-bottom: 20px; border-bottom: 1px solid var(--color-border); }
-.deck-stepper { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 18px 0 0; padding: 0; list-style: none; }
-.deck-stepper li { display: flex; align-items: center; gap: 8px; }
+.deck-stepper { display: flex; flex-wrap: nowrap; align-items: center; gap: 8px; margin: 18px 0 0; padding: 3px 2px 7px; list-style: none; overflow-x: auto; }
+.deck-stepper li { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .deck-step-line { width: 24px; height: 1px; background: var(--color-border); }
-.deck-step-button { display: inline-flex; align-items: center; gap: 10px; padding: 3px 14px 3px 5px; border: 1px solid var(--color-border); border-radius: 999px; background: var(--color-surface); color: var(--color-ink-muted); font-size: var(--text-body-md); }
+.deck-step-button { display: inline-flex; align-items: center; gap: 10px; padding: 3px 14px 3px 5px; border: 1px solid var(--color-border); border-radius: 999px; background: var(--color-surface); color: var(--color-ink-muted); font-size: var(--text-body-md); flex-shrink: 0; white-space: nowrap; }
 .deck-step-button:disabled { cursor: default; }
 .deck-step-button:not(:disabled):hover { border-color: var(--color-border-strong); color: var(--color-ink-sub); }
 .deck-step-number { display: flex; width: 34px; height: 34px; flex-shrink: 0; align-items: center; justify-content: center; border: 1px solid var(--color-border); border-radius: 50%; background: var(--color-surface); }
@@ -149,7 +149,7 @@
 .beautify-pagination-number { display: inline-flex; width: 36px; height: 36px; align-items: center; justify-content: center; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-surface); }
 .beautify-pagination-number.is-current { border-color: var(--color-primary); background: var(--color-primary); color: #fff; }
 @media (min-width: 1024px) { .deck-page-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } .deck-split { grid-template-columns: 260px minmax(0, 1fr); } .deck-overview-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } .beautify-style-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-@media (max-width: 639px) { .deck-stepper { gap: 8px 16px; } .deck-step-line { display: none; } .deck-step-button { gap: 6px; font-size: var(--text-caption); } .deck-page-grid { grid-template-columns: 1fr; } .deck-rail { flex-direction: row; max-height: none; overflow-x: auto; } .deck-rail-item { width: auto; flex-shrink: 0; } .deck-rail-title { max-width: 140px; } .deck-slide { aspect-ratio: auto; min-height: 300px; } .deck-action-bar { border-radius: 20px; width: 100%; } .beautify-style-grid { grid-template-columns: 1fr; } }
+@media (max-width: 639px) { .deck-stepper { gap: 8px 16px; } .deck-step-line { display: none; } .deck-step-button { gap: 6px; font-size: var(--text-caption); } .deck-stepper li { flex-shrink: 0; } .deck-page-grid { grid-template-columns: 1fr; } .deck-rail { flex-direction: row; max-height: none; overflow-x: auto; } .deck-rail-item { width: auto; flex-shrink: 0; } .deck-rail-title { max-width: 140px; } .deck-slide { aspect-ratio: auto; min-height: 300px; } .deck-action-bar { border-radius: 20px; width: 100%; } .beautify-style-grid { grid-template-columns: 1fr; } }
 @media (prefers-reduced-motion: reduce) { .deck-switch span { transition: none; } }
 
 /* ============ 项目卡片（我的项目） ============ */
