@@ -24,25 +24,30 @@ def esc(text: str) -> str:
     return text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
 
 
-def inline(text: str, base_dir: str, embed: bool) -> str:
-    """行内元素：图片 → 链接 → 代码 → 粗体 → 斜体。"""
+def inline(text: str, base_dir: str, embed: bool, img_width: int = 0, asset_dir: str = '') -> str:
+    """行内元素：图片 → 链接 → 代码 → 粗体 → 斜体。
+
+    img_width > 0 时给 <img> 写显式 width 属性：LibreOffice 的 HTML 导入不认 CSS max-width，
+    不给宽度它就会按原图像素宽（1440px→1080pt）塞进 A4，导致图片被裁。
+    """
     def image(match):
         alt, src = match.group(1), match.group(2)
         path = src if os.path.isabs(src) else os.path.join(base_dir, src)
+        if asset_dir and not os.path.isabs(src):
+            mirror = os.path.join(asset_dir, src)
+            if os.path.isfile(mirror):
+                path = mirror   # LibreOffice 不认 CSS/width，改用预缩放副本
         if not os.path.isfile(path):
             return '<em>[缺失图片：%s]</em>' % esc(src)
         ext = os.path.splitext(path)[1].lower()
         mime = IMAGE_EXT.get(ext, 'application/octet-stream')
         if embed:
-            if ext == '.svg':
-                data = base64.b64encode(io.open(path, 'rb').read()).decode()
-                url = 'data:%s;base64,%s' % (mime, data)
-            else:
-                data = base64.b64encode(io.open(path, 'rb').read()).decode()
-                url = 'data:%s;base64,%s' % (mime, data)
+            data = base64.b64encode(io.open(path, 'rb').read()).decode()
+            url = 'data:%s;base64,%s' % (mime, data)
         else:
             url = 'file://' + os.path.abspath(path)
-        return '<img src="%s" alt="%s"/>' % (url, esc(alt))
+        size = ' width="%d"' % img_width if img_width else ''
+        return '<img src="%s" alt="%s"%s/>' % (url, esc(alt), size)
 
     text = re.sub(r'!\[([^\]]*)\]\(([^)]+)\)', image, text)
     text = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', r'<a href="\2">\1</a>', text)
@@ -52,9 +57,11 @@ def inline(text: str, base_dir: str, embed: bool) -> str:
     return text
 
 
-def convert(md_path: str, embed: bool = True, title: str | None = None) -> str:
+def convert(md_path: str, embed: bool = True, title: str | None = None, img_width: int = 0, asset_dir: str = '') -> str:
     base_dir = os.path.dirname(os.path.abspath(md_path))
     lines = io.open(md_path, encoding='utf-8').read().split('\n')
+    def inl(text: str) -> str:
+        return inline(text, base_dir, embed, img_width, asset_dir)
     out, i = [], 0
     in_code = False
     code_buf: list[str] = []
@@ -103,7 +110,7 @@ def convert(md_path: str, embed: bool = True, title: str | None = None) -> str:
         if heading:
             close_list(); close_table()
             level = len(heading.group(1))
-            out.append('<h%d>%s</h%d>' % (level, inline(heading.group(2), base_dir, embed), level))
+            out.append('<h%d>%s</h%d>' % (level, inl(heading.group(2)), level))
             i += 1
             continue
 
@@ -114,7 +121,7 @@ def convert(md_path: str, embed: bool = True, title: str | None = None) -> str:
             while i < len(lines) and lines[i].strip().startswith('>'):
                 quote.append(lines[i].strip().lstrip('>').strip())
                 i += 1
-            out.append('<blockquote>%s</blockquote>' % inline(' '.join(quote), base_dir, embed))
+            out.append('<blockquote>%s</blockquote>' % inl(' '.join(quote)))
             continue
 
         # 表格：| a | b |  + 分隔行
@@ -122,12 +129,12 @@ def convert(md_path: str, embed: bool = True, title: str | None = None) -> str:
             close_list()
             header = [c.strip() for c in stripped.strip('|').split('|')]
             out.append('<table><thead><tr>%s</tr></thead><tbody>'
-                       % ''.join('<th>%s</th>' % inline(c, base_dir, embed) for c in header))
+                       % ''.join('<th>%s</th>' % inl(c) for c in header))
             in_table = True
             i += 2
             while i < len(lines) and lines[i].strip().startswith('|'):
                 cells = [c.strip() for c in lines[i].strip().strip('|').split('|')]
-                out.append('<tr>%s</tr>' % ''.join('<td>%s</td>' % inline(c, base_dir, embed) for c in cells))
+                out.append('<tr>%s</tr>' % ''.join('<td>%s</td>' % inl(c) for c in cells))
                 i += 1
             close_table()
             continue
@@ -141,12 +148,12 @@ def convert(md_path: str, embed: bool = True, title: str | None = None) -> str:
                 close_list()
                 out.append('<%s>' % kind)
                 list_kind = kind
-            out.append('<li>%s</li>' % inline((bullet or ordered).group(1), base_dir, embed))
+            out.append('<li>%s</li>' % inl((bullet or ordered).group(1)))
             i += 1
             continue
 
         close_list(); close_table()
-        out.append('<p>%s</p>' % inline(stripped, base_dir, embed))
+        out.append('<p>%s</p>' % inl(stripped))
         i += 1
 
     close_list(); close_table()
@@ -198,7 +205,15 @@ def main():
         return 1
     md_path, out_path = positional[0], positional[1]
     embed = '--images=path' not in sys.argv
-    html = convert(md_path, embed=embed)
+    img_width = 0
+    for arg in sys.argv:
+        if arg.startswith('--img-width='):
+            img_width = int(arg.split('=', 1)[1])
+    asset_dir = ''
+    for arg in sys.argv:
+        if arg.startswith('--asset-dir='):
+            asset_dir = arg.split('=', 1)[1]
+    html = convert(md_path, embed=embed, img_width=img_width, asset_dir=asset_dir)
     io.open(out_path, 'w', encoding='utf-8').write(html)
     print('✓ %s → %s（图片：%s）' % (md_path, out_path, 'base64 内嵌' if embed else '绝对路径'))
     return 0
