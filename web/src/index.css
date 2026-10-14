@@ -47,15 +47,16 @@
 .deck-stepper { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 18px 0 0; padding: 0; list-style: none; }
 .deck-stepper li { display: flex; align-items: center; gap: 8px; }
 .deck-step-line { width: 24px; height: 1px; background: var(--color-border); }
-.deck-step-button { display: flex; align-items: center; gap: 10px; color: var(--color-ink-muted); font-size: var(--text-body-md); }
+.deck-step-button { display: inline-flex; align-items: center; gap: 10px; padding: 3px 14px 3px 5px; border: 1px solid var(--color-border); border-radius: 999px; background: var(--color-surface); color: var(--color-ink-muted); font-size: var(--text-body-md); }
 .deck-step-button:disabled { cursor: default; }
+.deck-step-button:not(:disabled):hover { border-color: var(--color-border-strong); color: var(--color-ink-sub); }
 .deck-step-number { display: flex; width: 34px; height: 34px; flex-shrink: 0; align-items: center; justify-content: center; border: 1px solid var(--color-border); border-radius: 50%; background: var(--color-surface); }
-.deck-step-button.is-current { color: var(--color-primary); font-weight: 600; }
+.deck-step-button.is-current { color: var(--color-primary); border-color: var(--color-primary); font-weight: 600; }
 .deck-step-button.is-current .deck-step-number { color: #fff; border-color: var(--color-primary); background: var(--color-primary); }
-.deck-step-button.is-complete .deck-step-number { background: var(--color-surface-alt); }
-.deck-step-button.is-locked { color: var(--color-ink-muted); cursor: not-allowed; }
+.deck-step-button.is-complete { color: var(--color-ink-sub); border-color: var(--color-border-strong); background: var(--color-surface-alt); }
+.deck-step-button.is-locked { color: var(--color-ink-muted); cursor: not-allowed; border-style: dashed; background: transparent; }
 .deck-step-button.is-locked .deck-step-number { border-style: dashed; opacity: .7; }
-.deck-step-button.is-error { color: var(--color-danger-ink); cursor: not-allowed; }
+.deck-step-button.is-error { color: var(--color-danger-ink); cursor: not-allowed; border-color: var(--color-danger-ink); background: var(--color-danger-bg); }
 .deck-step-button.is-error .deck-step-number { color: var(--color-danger-ink); border-color: var(--color-danger-ink); background: var(--color-danger-bg); }
 .deck-step-hint { display: block; font-size: var(--text-caption); font-weight: 400; text-align: left; white-space: nowrap; }
 .deck-page-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
