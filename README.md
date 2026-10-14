@@ -7,6 +7,16 @@
 
 下载地址：<https://github.com/dhk1413-del/deckforge>
 
+## 安装
+
+**方法一：交给 agent 工具（以 WorkBuddy 为例）**
+
+打开 WorkBuddy 新建一个对话，把仓库地址和安装要求发给它，让它自己克隆、装依赖、构建前端、启动服务并自检。
+复制用的提示词、以及其它 agent（Cursor、Claude Code、Codex）的注意事项见
+[使用说明 §1.2](docs/使用说明.md)。
+
+**方法二：手动安装**
+
 ```bash
 git clone https://github.com/dhk1413-del/deckforge.git
 cd deckforge
@@ -14,6 +24,8 @@ cd deckforge
 cd web && npm install && npm run build && cd ..
 bash server/start-lan.sh          # 打开 http://127.0.0.1:8641
 ```
+
+第一次执行启动脚本时，它会自动创建 `.venv`、安装 Python 依赖和 `server/pptx` 的 Node 依赖。
 
 安装、配置和逐步操作见 [docs/使用说明.md](docs/使用说明.md)（也有 [PDF](docs/使用说明.pdf) 和 [Word](docs/使用说明.docx) 版本）。
 

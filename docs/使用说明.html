@@ -31,7 +31,7 @@
 <p>下载地址：<https://github.com/dhk1413-del/deckforge></p>
 <pre><code>git clone https://github.com/dhk1413-del/deckforge.git
 cd deckforge</code></pre>
-<p>这份说明写给从 GitHub 下载后自己部署的人。第 1 章把服务跑起来，第 3–8 章讲三个流程怎么用，遇到问题看第 11 章。</p>
+<p>这份说明写给从 GitHub 下载后自己部署的人。第 1 章先装好并启动（不想手动敲命令就直接看 1.2），第 3–8 章讲各流程怎么用，遇到问题看第 11 章。</p>
 <p>文中的截图取自演示数据（虚构品牌「星野咖啡」），没有真实项目内容。</p>
 <hr/>
 <h2>1. 部署与启动</h2>
@@ -43,13 +43,45 @@ cd deckforge</code></pre>
 <tr><td>Codex CLI</td><td>可选</td><td>只有「PPT 美化」全量重建可编辑版用到</td></tr>
 <tr><td>精细重建引擎</td><td>可选</td><td>只有「图片转可编辑」用到</td></tr>
 </tbody></table>
-<p>只处理 Markdown、TXT 或粘贴文本时不需要 LibreOffice。不配任何密钥也能跑完整流程，见 1.6。</p>
-<h3>1.2 安装</h3>
+<p>只处理 Markdown、TXT 或粘贴文本时不需要 LibreOffice。不配任何密钥也能跑完整流程，见 1.7。</p>
+<h3>1.2 方法一：让 agent 工具帮你装（以 WorkBuddy 为例）</h3>
+<p>本机装了桌面 agent 的话，安装这件事可以直接交给它。下面以 <strong>WorkBuddy</strong>（腾讯，本机路径 <code>/Applications/WorkBuddy.app</code>）为例，</p>
+<p>其它能执行终端命令的 agent（Cursor、Claude Code、Codex 等）同样适用。</p>
+<ol>
+<li>打开 WorkBuddy，新建一个对话。</li>
+<li>把下面这段原样粘进去。它会自己克隆仓库、装依赖、构建前端、启动服务，并把自检结果回报给你。</li>
+</ol>
+<pre><code>帮我在本机把这个开源项目跑起来：https://github.com/dhk1413-del/deckforge
+
+要求：
+1) 克隆到 ~/Documents/deckforge（目录已存在就跳过克隆，不要覆盖我已有的改动）
+2) 进入 web/ 执行 npm install &amp;&amp; npm run build
+3) 回到仓库根执行 bash server/start-lan.sh
+   注意：首次启动会自动创建 .venv 并安装 Python 依赖与 PptxGenJS，需要几分钟，不要中断
+4) 用 curl -s --noproxy '*' http://127.0.0.1:8641/api/health 确认返回里有 "ok": true
+5) 跑 make verify-fast，把它打印的真实结果行（「通过 N 项，失败 M 项」和「N 项检查：N 通过 / 0 失败」）发给我
+6) 任何一步失败，把原始报错贴出来，说明原因和你要怎么改，先别自己改代码
+
+约束：不要修改 data/ 里的文件，不要把任何密钥写进仓库或代码，也不要做 git commit。
+最后告诉我访问地址和你执行过的命令。</code></pre>
+<ol>
+<li>它跑完后，自己打开 <http://127.0.0.1:8641> 看一眼就行。</li>
+<li>如果它中途问你要 API key，可以先不给：不配任何密钥也能跑通全流程（见 1.7）。</li>
+</ol>
+<p>几点注意：</p>
+<ul>
+<li>agent 需要有执行终端命令的权限，macOS 可能弹窗要求允许 Python 接收本地网络连接，点允许。</li>
+<li>工作目录别放在会被同步盘实时扫描的位置，首次 <code>npm install</code> 会比较慢。</li>
+<li>WorkBuddy 的会话产物一般落在 <code>~/WorkBuddy/<时间戳>/</code> 下，装完后可以在那里翻它的执行记录。</li>
+</ul>
+<h3>1.3 方法二：手动安装</h3>
 <pre><code>git clone https://github.com/dhk1413-del/deckforge.git
 cd deckforge
-cd web &amp;&amp; npm install &amp;&amp; npm run build &amp;&amp; cd ..</code></pre>
-<p>后端依赖不用手动装。第一次执行启动脚本时，脚本会建 <code>.venv</code>、装 <code>server/requirements.txt</code>、装 <code>server/pptx</code> 的 Node 依赖。</p>
-<h3>1.3 启动、停止、重启</h3>
+
+cd web &amp;&amp; npm install &amp;&amp; npm run build &amp;&amp; cd ..
+bash server/start-lan.sh          # 默认 127.0.0.1:8641</code></pre>
+<p>后端依赖不用手动装。第一次执行启动脚本时，脚本会创建 <code>.venv</code>、安装 <code>server/requirements.txt</code>、安装 <code>server/pptx</code> 的 Node 依赖。</p>
+<h3>1.4 启动、停止、重启</h3>
 <pre><code>bash server/start-lan.sh                              # 启动，默认 127.0.0.1:8641
 bash server/stop-daemon.sh                            # 停止
 bash server/stop-daemon.sh &amp;&amp; bash server/start-lan.sh # 重启（改完后端代码）</code></pre>
@@ -57,7 +89,7 @@ bash server/stop-daemon.sh &amp;&amp; bash server/start-lan.sh # 重启（改完
 <p>不要在终端里前台跑 <code>bash server/run.sh</code>：会话结束时进程会被带走，页面就打不开了。重启后可以这样确认服务已脱离终端：</p>
 <pre><code>ps -o pid,ppid -p $(cat data/logs/deckforge.pid)      # PPID 应为 1
 curl -s --noproxy '*' http://127.0.0.1:8641/api/health  # "ok": true</code></pre>
-<h3>1.4 看门狗</h3>
+<h3>1.5 看门狗</h3>
 <p><code>server/watchdog.sh</code> 每 60 秒探一次健康检查，不是 200 就用当前的 HOST/PORT 重新拉起服务，日志在 <code>data/logs/watchdog.log</code>。</p>
 <p>macOS 没有 <code>setsid</code>，用新会话方式启动：</p>
 <pre><code>python3 - &lt;&lt;'PY'
@@ -68,15 +100,15 @@ PY
 
 pkill -f 'server/watchdog.sh'    # 停止
 tail -f data/logs/watchdog.log   # 看日志</code></pre>
-<h3>1.5 局域网访问</h3>
+<h3>1.6 局域网访问</h3>
 <pre><code>HOST=0.0.0.0 PORT=8641 bash server/start-lan.sh</code></pre>
 <p>服务没有登录鉴权，同网段的人都能改密钥、上传和下载文件。只在可信网络里用，不要暴露到公网。</p>
 <p>macOS 首次可能弹防火墙授权，要允许 Python 接收本地网络连接。</p>
-<h3>1.6 不配密钥也能跑</h3>
+<h3>1.7 不配密钥也能跑</h3>
 <p>没有任何密钥时：内容梳理走本地按段落切页；出图走本地兜底渲染（Pillow 把结构化内容画成 16:9 PNG），</p>
 <p>provider 记 <code>local_render</code>，费用记 0；图片理解退化为取该页色板与插画裁片。流程和两种导出都照常可用。</p>
 <p>可以先零成本走一遍，确认排版和流程没问题，再决定哪一页值得花钱调真实模型。</p>
-<h3>1.7 端口和数据目录</h3>
+<h3>1.8 端口和数据目录</h3>
 <table><thead><tr><th>变量</th><th>默认</th><th>说明</th></tr></thead><tbody>
 <tr><td><code>PORT</code> / <code>DECKFORGE_PORT</code></td><td>8641（<code>server/run.sh</code> 默认 8640）</td><td>端口</td></tr>
 <tr><td><code>HOST</code> / <code>DECKFORGE_HOST</code></td><td>127.0.0.1</td><td>监听地址</td></tr>
@@ -214,7 +246,7 @@ tail -f data/logs/watchdog.log   # 看日志</code></pre>
 <hr/>
 <h2>11. 常见问题</h2>
 <table><thead><tr><th>现象</th><th>处理</th></tr></thead><tbody>
-<tr><td>页面打不开，<code>ERR_CONNECTION_REFUSED</code></td><td>服务没在跑，执行 <code>bash server/start-lan.sh</code>；按 1.4 挂上看门狗</td></tr>
+<tr><td>页面打不开，<code>ERR_CONNECTION_REFUSED</code></td><td>服务没在跑，执行 <code>bash server/start-lan.sh</code>；按 1.5 挂上看门狗</td></tr>
 <tr><td>改了后端代码没生效</td><td>后端不热重载，执行 <code>bash server/stop-daemon.sh && bash server/start-lan.sh</code></td></tr>
 <tr><td>改了前端代码没变化</td><td>重新构建 <code>cd web && npm run build</code>，然后强制刷新（Cmd/Ctrl+Shift+R）</td></tr>
 <tr><td>上传 PPTX 后没有逐页预览</td><td>需要本机可用的 LibreOffice；装好后重启服务</td></tr>
