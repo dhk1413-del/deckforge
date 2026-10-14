@@ -44,7 +44,8 @@
 /* PPT 美化 / 文档生成 / 图片转可编辑 三条流程共用：FlowKit 步骤条（结构与交互统一） */
 .beautify-workbench { padding-bottom: 24px; }
 .beautify-flow-header { padding-bottom: 20px; border-bottom: 1px solid var(--color-border); }
-.deck-stepper { display: flex; flex-wrap: nowrap; align-items: center; gap: 8px; margin: 18px 0 0; padding: 3px 2px 7px; list-style: none; overflow-x: auto; }
+.deck-stepper { display: flex; flex-wrap: nowrap; align-items: center; gap: 8px; margin: 18px 0 0; padding: 3px 2px 7px; list-style: none; overflow-x: auto; scrollbar-width: none; }
+.deck-stepper::-webkit-scrollbar { display: none; }   /* 窄屏横滑，但不显示滚动条轨道 */
 .deck-stepper li { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .deck-step-line { width: 24px; height: 1px; background: var(--color-border); }
 .deck-step-button { display: inline-flex; align-items: center; gap: 10px; padding: 3px 14px 3px 5px; border: 1px solid var(--color-border); border-radius: 999px; background: var(--color-surface); color: var(--color-ink-muted); font-size: var(--text-body-md); flex-shrink: 0; white-space: nowrap; }

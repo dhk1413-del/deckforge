@@ -14,12 +14,12 @@ import {
   listStylePacks,
   postOutline,
   putPages,
-  uploadPastedText,
   uploadSource,
-  type ApiError,
+  ApiError,
 } from '../api'
 import { ActionBar, FlowSteps, PageSelectGrid } from '../components/FlowKit'
 import { ContentEditor } from '../components/ContentEditor'
+import { Dropzone } from '../components/Dropzone'
 import { useTextReady } from '../components/ProviderStatus'
 import { ProjectWorkbench } from '../components/ProjectWorkbench'
 import { SlidePreview } from '../components/SlidePreview'
@@ -107,11 +107,8 @@ export function WizardPage() {
   // ① 上传
   const [title, setTitle] = useState('')
   const [sourceType, setSourceType] = useState<SourceType>('markdown')
-  const [pasteText, setPasteText] = useState('')
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState<ApiError | null>(null)
-  const [dragging, setDragging] = useState(false)
-  const fileRef = useRef<HTMLInputElement | null>(null)
 
   // ② 页面确认 / ③ 内容梳理
   const [projectId, setProjectId] = useState<string | null>(null)
@@ -163,7 +160,6 @@ export function WizardPage() {
       projectStamp.current=project.updated_at
       setTitle(project.title)
       setSourceType(project.source_type as SourceType)
-      setPasteText(project.parsed_text || '')
       const text = project.parsed_text || ''
       const count = project.target_pages || Math.max(3, Math.min(30, Math.round(text.length / 420) || 3))
       setTargetPages(count)
@@ -323,6 +319,11 @@ export function WizardPage() {
   /* ---------------- ① 上传 ---------------- */
 
   async function handleFile(file: File) {
+    if (file.size > 30 * 1024 * 1024) {          // 与首页/美化一致：框里写着 30MB，这里就得拦住
+      setUploadError(new ApiError(`${file.name} 超过 30MB（${(file.size / 1048576).toFixed(1)}MB）`, 0))
+      setErrorAt(1)
+      return
+    }
     setUploading(true)
     setUploadError(null)
     setErrorAt(undefined)
@@ -363,42 +364,6 @@ export function WizardPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  async function handlePaste() {
-    const text = pasteText.trim()
-    if (!text) {
-      toast.warn('粘贴区是空的', '把大纲 / 讲稿贴进来，或直接拖入文件')
-      return
-    }
-    setUploading(true)
-    setUploadError(null)
-    setErrorAt(undefined)
-    setSourceUploadDone(false)
-    const guessTitle = title.trim() || text.slice(0, 18).replace(/\s+/g, ' ')
-    try {
-      const { id } = await createProject({ title: guessTitle, source_type: 'text', intake_mode: 'paste' })
-      setProjectId(id)
-      setTitle(guessTitle)
-      setSourceType('text')
-      setSourcePages(null)
-      setSourcePreviewIndex(null)
-      setSourceLargeReady(new Set())
-      setSourceLargeLoading(null)
-      const res = await uploadPastedText(id, text)
-      setSourceUploadDone(true)
-      setParsed(res)
-      const count = res.suggested_pages || Math.max(1, Math.round(res.char_count / 600))
-      setTargetPages(count)
-      setPages(draftPages(count))
-      toast.success('已接收粘贴文本', `${res.char_count} 字 · 建议 ${count} 页`)
-      if (stylePackId) await configureProject(id, {style_pack_id: stylePackId})
-      goto(2, id)
-    } catch (e) {
-      setUploadError(e as ApiError)
-      setErrorAt(1)
-    } finally {
-      setUploading(false)
-    }
-  }
 
   // PPTX 上传响应不等待 LibreOffice；上传落盘后才开始查询，并限定轮询时间。
   useEffect(() => {
@@ -529,11 +494,6 @@ export function WizardPage() {
     <div className="flex flex-col gap-4">
       <div className="card">
         <h2 className="card-title text-h3">上传原稿</h2>
-        <p className="card-desc">
-          支持 <span className="num">.md / .txt / .docx / .pdf / .pptx</span>，也可以直接粘贴文本。
-          上传后调 <span className="num">POST /api/projects</span> +{' '}
-          <span className="num">POST /api/projects/&#123;id&#125;/upload</span>。
-        </p>
 
         <label className="flex flex-col gap-1 md:max-w-[420px]">
           <span className="metric-label">项目标题（可留空，默认取文件名）</span>
@@ -545,47 +505,17 @@ export function WizardPage() {
           />
         </label>
 
-        {/* 上传与粘贴并排：两栏省一屏（1280+ 生效） */}
-        <div className="band mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2">
-        <div
-          className={cn(
-            'df-dropzone flex flex-col items-center justify-center rounded-lg border border-dashed border-border bg-surface-alt px-6 py-6 text-center',
-            dragging && 'is-over',
-          )}
-          onDragOver={(e) => {
-            e.preventDefault()
-            setDragging(true)
-          }}
-          onDragLeave={() => setDragging(false)}
-          onDrop={(e) => {
-            e.preventDefault()
-            setDragging(false)
-            const f = e.dataTransfer.files?.[0]
-            if (f) void handleFile(f)
-          }}
-        >
-          <div className="font-semibold">把原稿拖到这里</div>
-          <p className="m-0 mt-1 text-body-sm text-ink-sub">或点击下面的按钮选择文件（单个文件）</p>
-          <input
-            ref={fileRef}
-            type="file"
+        <div className="mt-4">
+          <Dropzone
+            head="把原稿拖到这里"
+            hint="或点击此处选择文件（单个文件）"
+            formats="TXT · MD · DOCX · PDF · PPTX · 单文件最大 30MB"
             accept={ACCEPT}
-            className="hidden"
-            onChange={(e) => {
-              const f = e.target.files?.[0]
+            onPick={(files) => {
+              const f = files[0]
               if (f) void handleFile(f)
-              e.target.value = ''
             }}
           />
-          <button
-            type="button"
-            className="btn btn-primary mt-3"
-            disabled={uploading}
-            title={uploading ? '正在上传解析，请稍候' : '选择原稿文件'}
-            onClick={() => fileRef.current?.click()}
-          >
-            {uploading ? '上传解析中…' : '选择文件'}
-          </button>
           {uploading && (
             <div className="mt-3 w-56">
               <div className="progress is-decor">
@@ -593,33 +523,6 @@ export function WizardPage() {
               </div>
             </div>
           )}
-        </div>
-
-        <div className="flex flex-col">
-        <label className="flex flex-col gap-1">
-          <span className="metric-label">或者直接粘贴文本（markdown / 纯文本大纲）</span>
-          <textarea
-            className="input h-40 resize-y py-2"
-            value={pasteText}
-            placeholder="# 三创汇报&#10;## 背景&#10;- …&#10;## 方案&#10;- …"
-            onChange={(e) => setPasteText(e.target.value)}
-          />
-        </label>
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            className="btn btn-secondary"
-            disabled={uploading || !pasteText.trim()}
-            title={!pasteText.trim() ? '粘贴区为空' : '用粘贴内容创建项目（intake_mode=paste）'}
-            onClick={handlePaste}
-          >
-            用粘贴内容创建项目
-          </button>
-          <span className="num text-caption text-ink-sub">
-            {pasteText.trim().length} 字
-          </span>
-        </div>
-        </div>
         </div>
       </div>
 

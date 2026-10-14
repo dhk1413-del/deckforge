@@ -179,10 +179,6 @@ export async function uploadSource(id: string, file: File): Promise<UploadRespon
   return (await res.json()) as UploadResponse
 }
 
-/** 粘贴文本 → 伪造成 .md 文件走同一上传接口（避免为粘贴另开接口） */
-export const uploadPastedText = (id: string, text: string) =>
-  uploadSource(id, new File([text], 'pasted.md', { type: 'text/markdown' }))
-
 export const postOutline = (id: string, target_pages: number, page_minutes: number) =>
   request<OutlineResponse>(
     `/projects/${encodeURIComponent(id)}/outline`,
