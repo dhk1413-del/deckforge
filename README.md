@@ -9,25 +9,23 @@
 
 ## 安装
 
-**方法一：交给 agent 工具（以 WorkBuddy 为例）**
+支持 macOS；Windows 使用 WSL2 Ubuntu。三种方式任选一种：
 
-打开 WorkBuddy 新建一个对话，把仓库地址和安装要求发给它，让它自己克隆、装依赖、构建前端、启动服务并自检。
-复制用的提示词、以及其它 agent（Cursor、Claude Code、Codex）的注意事项见
-[使用说明 §1.2](docs/使用说明.md)。
-
-**方法二：手动安装**
+1. **DeepSeek Harness 帮装**：从 [DeepSeek 官方页面](https://www.deepseek.com/zh/harness/) 获取工具，在新会话里粘贴 [安装要求](docs/使用说明.md#1-用-ai-助手帮你安装)。
+2. **WorkBuddy 帮装**：从 [腾讯官方下载页](https://www.codebuddy.cn/downloads/) 获取 WorkBuddy，使用同一段安装要求，让它完成下载、安装和启动。
+3. **手动安装**：先准备 Python（推荐 3.12）、Node.js 22 系列最新版（至少 22.12）、Git；处理 PPTX 还需 LibreOffice。Windows 先准备 WSL2，详细步骤见 [手动安装](docs/使用说明.md#2-手动安装)。
 
 ```bash
 git clone https://github.com/dhk1413-del/deckforge.git
 cd deckforge
-
-cd web && npm install && npm run build && cd ..
-bash server/start-lan.sh          # 打开 http://127.0.0.1:8641
+npm --prefix web install
+npm --prefix web run build
+bash server/start-lan.sh
 ```
 
-第一次执行启动脚本时，它会自动创建 `.venv`、安装 Python 依赖和 `server/pptx` 的 Node 依赖。
+首次启动会自动安装其余依赖；出现“已就绪”后打开 **http://127.0.0.1:8641**。
 
-安装、配置和逐步操作见 [docs/使用说明.md](docs/使用说明.md)（也有 [PDF](docs/使用说明.pdf) 和 [Word](docs/使用说明.docx) 版本）。
+[图文使用说明](docs/使用说明.md) · [PDF](docs/使用说明.pdf) · [Word](docs/使用说明.docx) · [HTML 阅读版](docs/使用说明.html)
 
 ## 能做什么
 
@@ -42,21 +40,22 @@ bash server/start-lan.sh          # 打开 http://127.0.0.1:8641
 
 ## 界面
 
-截图取自演示数据（虚构品牌「星野咖啡」）和零 key 的本地兜底渲染。
+截图来自当前系统的隔离演示实例，原始视口截图为 **3840×2160**。
+文档生成使用零密钥本地渲染；美化截图显示“已用原图”；转换和备注展示准备状态。
 
 | 首页 | 页面确认 |
 |---|---|
-| ![首页](docs/screenshots/01-home.png) | ![页面确认](docs/screenshots/03-wizard-pages.png) |
+| ![首页](docs/screenshots/current/01-home.png) | ![页面确认](docs/screenshots/current/02-pages.png) |
 
-| 生成结果 | 风格库 |
+| 生成结果 | 风格选择 |
 |---|---|
-| ![生成结果](docs/screenshots/06-wizard-result.png) | ![风格库](docs/screenshots/08-styles.png) |
+| ![生成结果](docs/screenshots/current/05-result.png) | ![风格选择](docs/screenshots/current/04-style.png) |
 
-| PPT 美化结果 | PPT 备注 |
+| PPT 美化预览 | 演讲备注 |
 |---|---|
-| ![美化结果](docs/screenshots/11-beautify-result.png) | ![备注](docs/screenshots/12-notes.png) |
+| ![美化预览 使用原图](docs/screenshots/current/07-beautify.png) | ![备注工作台 准备状态](docs/screenshots/current/09-notes.png) |
 
-其余截图在 [docs/screenshots/](docs/screenshots/)。
+[高清系统截图](docs/screenshots/current/) · [ImageGen 功能图解](docs/illustrations/)
 
 ## 架构
 
