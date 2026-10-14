@@ -62,6 +62,8 @@ interface PageDraft {
 }
 
 const ACCEPT = '.md,.markdown,.txt,.docx,.pdf,.pptx'
+/** 每页讲解时长（分钟）：曾是可调输入项，按用户要求去掉界面，统一用这个默认值喂给大纲接口。 */
+const PAGE_MINUTES = 1.5
 
 /** 来源类型猜测（后缀 → 契约 source_type） */
 function guessSourceType(name: string): SourceType {
@@ -117,7 +119,6 @@ export function WizardPage() {
   const [savingPages, setSavingPages] = useState(false)
   const [pagesError, setPagesError] = useState<ApiError | null>(null)
   const [targetPages, setTargetPages] = useState(13)
-  const [pageMinutes, setPageMinutes] = useState(1.5)
   const [outline, setOutline] = useState<OutlinePage[] | null>(null)
   const [outlineMeta, setOutlineMeta] = useState<{ configured?: boolean; hint?: string; fallback?: string } | null>(null)
   const [outlining, setOutlining] = useState(false)
@@ -348,6 +349,8 @@ export function WizardPage() {
       toast.success(`已解析 ${file.name}`, `${res.char_count} 字 · 建议 ${count} 页`)
       if (stylePackId) await configureProject(id, {style_pack_id: stylePackId})
       goto(2, id)
+      // 上传完直接开始梳理内容：不再让用户在第②步二次确认（要重来可用「重新梳理」）
+      void runOutline(id, count)
     } catch (e) {
       setUploadError(e as ApiError)
       setErrorAt(1)
@@ -439,14 +442,15 @@ export function WizardPage() {
 
   /* ---------------- ③ 内容梳理 ---------------- */
 
-  const runOutline = useCallback(async () => {
-    if (!projectId) return
+  const runOutline = useCallback(async (idArg: string | null = projectId, targetArg: number = targetPages) => {
+    const id = idArg
+    if (!id) return
     setOutlining(true)
     setOutlineError(null)
     setErrorAt(undefined)
     try {
-      const res = await postOutline(projectId, targetPages, pageMinutes)
-      const slides = await getSlides(projectId)
+      const res = await postOutline(id, targetArg, PAGE_MINUTES)
+      const slides = await getSlides(id)
       setPagesConfirmed(false)
       setContentConfirmed(false)
       setOutline(res.pages ?? [])
@@ -486,7 +490,7 @@ export function WizardPage() {
     } finally {
       setOutlining(false)
     }
-  }, [projectId, keptPages.length, targetPages, pageMinutes, toast])
+  }, [projectId, keptPages.length, targetPages, toast])
 
   /* ---------------- 渲染 ---------------- */
 
@@ -700,7 +704,6 @@ export function WizardPage() {
       <div className="deck-loading-meta">
         <span>文档字数 <b className="num">{parsed?.char_count != null ? `约 ${parsed.char_count} 字` : '—'}</b></span>
         <span>目标页数 <b className="num">{targetPages} 页</b></span>
-        <span>每页讲解 <b className="num">{pageMinutes} 分钟</b></span>
       </div>
 
       <ActionBar className="deck-loading-actions">
@@ -716,23 +719,12 @@ export function WizardPage() {
           <h2 className="card-title m-0! text-h3">内容梳理</h2>
           <span className="status status-info num">{keptPages.length} 页待梳理</span>
           <span className="flex-1" />
-          <label className="flex items-center gap-2">
-            <span className="metric-label">每页讲解</span>
-            <input
-              className="input num w-24"
-              type="number"
-              step="0.5"
-              min={0.5}
-              value={pageMinutes}
-              onChange={(e) => setPageMinutes(Number(e.target.value) || 1.5)}
-            />
-          </label>
           <button
             type="button"
             className="btn btn-secondary h-8! text-body-sm"
             disabled={outlining || !projectId}
             title="调用 POST /api/projects/{id}/outline 重新梳理"
-            onClick={runOutline}
+            onClick={() => void runOutline()}
           >
             {outlining ? '梳理中…' : outline ? '重新梳理' : '开始梳理'}
           </button>
@@ -744,7 +736,7 @@ export function WizardPage() {
           </div>
         )}
 
-        {outlineError && <ErrorState error={outlineError} onRetry={runOutline} title="内容梳理失败" />}
+        {outlineError && <ErrorState error={outlineError} onRetry={() => void runOutline()} title="内容梳理失败" />}
 
         {outline && outline.length > 0 && (
           <>
@@ -786,7 +778,7 @@ export function WizardPage() {
             title="还没有梳理结果"
             desc="点「开始梳理」让 DeepSeek 提炼每页标题与要点；没有 key 时会用本地规则切页兜底。"
             actionLabel="开始梳理"
-            onAction={runOutline}
+            onAction={() => void runOutline()}
           />
         )}
       </div>
