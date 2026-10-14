@@ -182,3 +182,23 @@
 
 .deck-page-zoom { position: absolute; display: flex; align-items: center; justify-content: center; bottom: 8px; left: 42px; width: 26px; height: 26px; border-radius: 50%; color: #fff; background: var(--color-secondary); font-size: 20px; }
 .deck-page-zoom:disabled { opacity: .4; }
+
+/* 美化内容梳理：页码导航 + 单页阅读卡片，复用 FlowKit 的交互。 */
+.beautify-content-workspace { gap: 24px; padding-bottom: 0; }
+.beautify-content-sidebar { min-width: 0; }
+.beautify-content-sidebar .deck-rail { padding: 0; border: 0; border-radius: 0; background: transparent; }
+.beautify-content-sidebar .deck-rail-item { min-height: 46px; border: 1px solid transparent; }
+.beautify-content-sidebar .deck-rail-item.is-current { border-color: var(--color-border-strong); }
+.beautify-content-sidebar .deck-rail-text { display: flex; min-width: 0; flex: 1; flex-direction: row; align-items: center; gap: 12px; }
+.beautify-content-sidebar .deck-rail-title { width: auto; min-width: 0; flex: 1; font-size: var(--text-body-md); }
+.beautify-content-paper { gap: 0; overflow: hidden; border: 1px solid var(--color-border); border-radius: 24px; background: var(--color-surface); box-shadow: var(--shadow-card); }
+.beautify-content-toolbar { gap: 10px; padding: 14px 18px; border-bottom: 1px solid var(--color-border); background: var(--color-surface-alt); }
+.beautify-content-toolbar .btn { border-radius: 999px; }
+.beautify-content-slide { min-height: 360px; border: 0; border-radius: 0; box-shadow: none; }
+.beautify-content-slide .deck-slide-title { font-size: clamp(20px, 1.9vw, 30px); }
+.beautify-content-text { min-height: 140px; flex: 1; overflow: auto; padding: 18px 20px; border: 1px solid var(--color-border); border-radius: 12px; background: var(--color-surface-band); }
+.beautify-content-text .deck-slide-points { font-size: var(--text-body-md); }
+.beautify-content-meta { padding: 12px 18px; border-top: 1px solid var(--color-border); }
+@media (min-width: 1024px) { .beautify-content-workspace { grid-template-columns: 180px minmax(0, 1fr); } }
+@media (max-width: 1023px) { .beautify-content-sidebar .deck-rail { flex-direction: row; max-height: none; overflow-x: auto; } .beautify-content-sidebar .deck-rail-item { width: auto; flex-shrink: 0; } }
+@media (max-width: 639px) { .beautify-content-toolbar { padding: 12px; } .beautify-content-slide { min-height: 320px; padding: 24px 18px; } .beautify-content-text { padding: 14px; } }

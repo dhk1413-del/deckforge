@@ -89,7 +89,10 @@ export function BeautifyPanel({ packs, loadingPacks, onStepChange, resumeProject
   const [engineError, setEngineError] = useState<string | null>(null)
   const [elapsedMs, setElapsedMs] = useState(0)
   const [cancelling, setCancelling] = useState(false)
-  useEffect(() => { onStepChange(step) }, [step, onStepChange])
+  useEffect(() => {
+    onStepChange(step)
+    window.scrollTo({ top: 0 })
+  }, [step, onStepChange])
   const stream = useJobStream(jobId, {
     onCancelled: () => { setCancelling(false); setBusy(false); setStep(5); void refresh(true) },
     onDone: () => { void refresh(true) },
@@ -361,24 +364,28 @@ export function BeautifyPanel({ packs, loadingPacks, onStepChange, resumeProject
         />
       </>}
       {step === 3 && content && currentPage && <>
-        <div><h3 className="m-0 text-h2 font-semibold">核对页面内容</h3><p className="mb-0 mt-2 text-ink-sub">左侧切换页面、每页单独展示；提炼出的文字按 <span className="num">16:9</span> 页面样式直接呈现（内容超出时在页面内滚动），可原地修改。这里不调用模型、不补写原文以外的内容。</p></div>
-        <div className="deck-split">
-          <PageRail label="页面列表" current={currentIndex} onSelect={(index) => { setPageIndex(index); setEditingPage(null) }}
+        <div className="deck-split beautify-content-workspace">
+          <aside className="beautify-content-sidebar">
+          <h3 className="m-0 mb-4 text-h3 font-semibold text-ink-sub">页面内容</h3>
+          <PageRail label="页面内容列表" current={currentIndex} onSelect={(index) => { setPageIndex(index); setEditingPage(null) }}
             items={contentPages.map(page => ({
               key: page.page_no, index: `P${page.page_no}`,
-              label: page.title.trim() || page.points.find(point => point.trim()) || '未提取到文字',
+              label: `第 ${page.page_no} 页`,
+              title: page.title.trim() || page.points.find(point => point.trim()) || '未提取到文字',
               dot: pageHasText(page) ? 'done' as const : 'idle' as const,
             }))} />
-          <section className="deck-slide-shell" aria-label={`第 ${currentPage.page_no} 页内容`}>
-            <div className="deck-slide-head">
+          </aside>
+          <section className="deck-slide-shell beautify-content-paper" aria-label={`第 ${currentPage.page_no} 页内容`}>
+            <div className="deck-slide-head beautify-content-toolbar">
               <span className="num font-semibold text-primary">P{currentPage.page_no}</span>
-              <span className={cn('status', pageHasText(currentPage) ? 'status-success' : 'status-warn')}>{pageHasText(currentPage) ? '已提取原文' : '未提取到文字'}</span>
+              <span className="text-body-sm text-ink-sub">内容页</span>
+              <span className={cn('status', pageHasText(currentPage) ? 'status-success' : 'status-warn')}>{pageHasText(currentPage) ? currentPage.source === 'user' ? '已编辑内容' : '已提取原文' : '未提取到文字'}</span>
               <span className="tag">{currentPage.keep_material ? '保留原页画面' : '按文字重新设计'}</span>
               <span className="flex-1" />
               <button type="button" className="btn btn-secondary rounded-full" disabled={busy} onClick={() => setEditingPage(editingPage === currentPage.page_no ? null : currentPage.page_no)}>{editingPage === currentPage.page_no ? '完成编辑' : '编辑内容'}</button>
-              <button type="button" className="btn btn-secondary rounded-full" disabled={busy} title="按原稿重新读取该页文字，不调用模型、不补写" onClick={() => void reextractPage(currentPage.page_no)}>{busy ? '处理中…' : '重新提取本页'}</button>
+              <button type="button" className="btn btn-secondary rounded-full" disabled={busy} title="重新读取该页已保存的文字；尚未保存时读取原稿，不调用模型" onClick={() => void reextractPage(currentPage.page_no)}>{busy ? '读取中…' : '重新读取本页'}</button>
             </div>
-            <div className="deck-slide">
+            <div className="deck-slide beautify-content-slide">
               {editingPage === currentPage.page_no
                 ? <>
                   <input className="deck-slide-title-input" value={currentPage.title} placeholder="页面标题（可留空）" aria-label={`第 ${currentPage.page_no} 页标题`} onChange={event => updateContent(currentPage.page_no, 'title', event.target.value)} />
@@ -387,12 +394,14 @@ export function BeautifyPanel({ packs, loadingPacks, onStepChange, resumeProject
                 : <>
                   {currentPage.title.trim() && <h4 className="deck-slide-title">{currentPage.title}</h4>}
                   {currentPage.title.trim() && <span className="deck-slide-rule" aria-hidden="true" />}
+                  <div className="beautify-content-text">
                   {currentPage.points.some(point => point.trim())
                     ? <ul className="deck-slide-points">{currentPage.points.filter(point => point.trim()).map((point, index) => <li key={index}>{point}</li>)}</ul>
                     : !currentPage.title.trim() && <p className="deck-slide-empty">这一页没有提取到文字。可点「编辑内容」手工补写；留空时后端会用原页画面，不编造文字。</p>}
+                  </div>
                 </>}
             </div>
-            <div className="deck-slide-meta">
+            <div className="deck-slide-meta beautify-content-meta">
               <span>文字来源：{currentPage.source === 'none' ? '未提取到' : currentPage.source === 'user' ? '人工修改' : currentPage.source.toUpperCase()}</span>
               <span>原文段落：<span className="num">{currentPage.texts.length}</span> 条</span>
               <span>页内文字：<span className="num">{(currentPage.title + currentPage.points.join('')).length}</span> 字</span>
@@ -501,9 +510,9 @@ export function BeautifyPanel({ packs, loadingPacks, onStepChange, resumeProject
       </ActionBar>}
       {step === 3 && content && currentPage && <ActionBar>
         <PagerArrow dir="prev" disabled={busy || currentIndex === 0} onClick={() => { setPageIndex(currentIndex - 1); setEditingPage(null) }}/>
-        <span>第 <span className="num">{currentPage.page_no}</span> / <span className="num">{contentPages.length}</span> 页</span>
+        <span>第 <span className="num">{currentIndex + 1}</span> / <span className="num">{contentPages.length}</span> 页</span>
         <PagerArrow dir="next" disabled={busy || currentIndex >= contentPages.length - 1} onClick={() => { setPageIndex(currentIndex + 1); setEditingPage(null) }}/>
-        <span className="text-ink-sub">完成 <span className="num">{filledCount}</span> / <span className="num">{contentPages.length}</span></span>
+        <span className="text-ink-sub">已提取 <span className="num">{filledCount}</span> / <span className="num">{contentPages.length}</span> 页文字</span>
         <button type="button" className="btn btn-secondary rounded-full" disabled={busy} onClick={() => setStep(2)}>返回页面确认</button>
         <button type="button" className="btn btn-primary rounded-full" disabled={busy} onClick={() => void confirmContent()}>{busy ? '正在保存…' : '确认内容，选择风格'}</button>
       </ActionBar>}
