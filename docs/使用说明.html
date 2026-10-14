@@ -272,6 +272,10 @@ make lint          # 后端字节码编译 + 前端 tsc</code></pre>
 <pre><code>.venv/bin/python tools/test_beautify_v2.py     # 美化：真源、缓存、零 key、单页重生成不影响其它页
 .venv/bin/python tools/test_native_render.py   # 原生渲染器不得伪造内容和数据
 .venv/bin/python tools/e2e_mvp.py              # 端到端（要求零 key 状态）
+
+# 建议在隔离实例上跑，不碰正式数据：
+DECKFORGE_DATA=/tmp/df-e2e PORT=8660 bash server/start-lan.sh
+DECKFORGE_DATA=/tmp/df-e2e DF_BASE=http://127.0.0.1:8660 .venv/bin/python tools/e2e_mvp.py
 .venv/bin/python tools/gen_diagrams.py         # 重新生成本文档里的流程图</code></pre>
 <hr/>
 <h2>13. 附录</h2>

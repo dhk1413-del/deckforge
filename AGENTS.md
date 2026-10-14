@@ -14,7 +14,7 @@
 | `web/src/` | `pages/`（Wizard/Styles/Projects/Usage/Settings）、`components/`（`ProjectWorkbench` 等）、`hooks/`、`api.ts`、`types.ts` |
 | `style-packs/` | 风格包（`styles/<名>/{style.md,prompt.md}`）与版式（`layouts/*.md`） |
 | `ui-design/` | 设计令牌：**浅色为主**，底 `#F5F6FC`、白卡、主色 `#1E78FA` |
-| `tools/` | `e2e_mvp.py`（零 key 端到端 38 项）、`test_native_render.py`、`test_vision_parse.py` |
+| `tools/` | `e2e_mvp.py`（零 key 端到端 34 项）、`test_native_render.py`、`test_vision_parse.py` |
 | `docs/API.md` | 前后端接口契约（**改接口必须同步此文件**） |
 | `config/providers.yaml` | 生图/文本/网络配置模板（key 由用户在设置页填，存 DB，不进仓库） |
 
@@ -38,6 +38,9 @@ make lint          # 后端字节码编译 + 前端 tsc（改完随手跑）
 #   .venv/bin/python tools/test_reskin_rebuild.py   # 换皮 B 口径（原文抽取/容量核算/重排）
 #   .venv/bin/python tools/test_native_render.py    # 渲染器不得伪造内容与数据
 #   .venv/bin/python tools/e2e_mvp.py               # 端到端（要求「零 key 状态」；已填 key 时口径不成立）
+#     建议在隔离实例上跑（不碰正式库）：先 `DECKFORGE_DATA=/tmp/df-e2e PORT=8660 bash server/start-lan.sh`，
+#     再 `DECKFORGE_DATA=/tmp/df-e2e DF_BASE=http://127.0.0.1:8660 .venv/bin/python tools/e2e_mvp.py`
+#     覆盖：上传 → 梳理 → 页面确认 → **内容确认** → 生成(SSE) → **逐页核对** → 导出 → 账本（后两步是导出的硬前置）
 ```
 
 ## 环境

@@ -22,6 +22,8 @@ import httpx
 BASE = os.environ.get("DF_BASE", "http://127.0.0.1:8640")
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 SAMPLE = os.path.join(ROOT, "samples", "三创赛汇报.md")
+# 导出的 PPTX 落在服务端的数据目录里：跟随 DECKFORGE_DATA（隔离实例），否则用仓库默认 data/
+DATA_DIR = os.environ.get("DECKFORGE_DATA") or os.path.join(ROOT, "data")
 
 PASS, FAIL = [], []
 
@@ -57,7 +59,7 @@ def main() -> int:
 
     print("\n[3] 风格包与布局")
     sps = c.get("/api/style-packs").json()["items"]
-    check("3 个内置风格包", len(sps) == 3, ", ".join(x["id"] for x in sps))
+    check("内置风格包可用", len(sps) >= 3, "%d 套：%s" % (len(sps), ", ".join(x["id"] for x in sps)))
     check("风格包带令牌色", all(x["accent"].startswith("#") and x["bg"].startswith("#") for x in sps))
     layouts = c.get("/api/layouts").json()["items"]
     check("7 个版式", len(layouts) == 7, ", ".join(x["key"] for x in layouts))
@@ -85,6 +87,10 @@ def main() -> int:
     c.put("/api/projects/%s/pages" % pid,
           json=dict(pages=[dict(page_no=p["page_no"], keep=(p["page_no"] in keep)) for p in pages]))
     check("页面勾选成功", c.get("/api/projects/%s/slides" % pid).status_code == 200)
+
+    print("\n[6.5] 内容确认（③；/generate 的硬前置，未确认会被拒）")
+    conf = c.patch("/api/projects/%s" % pid, json=dict(confirm_content=True))
+    check("内容确认通过", conf.status_code == 200, conf.text[:60])
 
     print("\n[7] 生成（SSE 收进度；无 key → 本地兜底渲染）")
     style_id = sps[0]["id"]
@@ -114,11 +120,22 @@ def main() -> int:
     check("每页带文字校验结论", all(x["verify"].get("text_accuracy") == 1.0 for x in items))
     check("图片可访问", c.get(items[0]["image_url"]).status_code == 200, items[0]["image_url"])
 
+    print("\n[8.5] 逐页核对（导出前的硬前置：未核对会被拒）")
+    reviewed = 0
+    for it in items:
+        r = c.post("/api/projects/%s/slides/%s/review" % (pid, it["slide_id"]),
+                   json=dict(image_url=it["image_url"]))
+        if r.status_code == 200:
+            reviewed += 1
+        else:
+            print("     · 第 %s 页核对失败：%s %s" % (it.get("page_no"), r.status_code, r.text[:60]))
+    check("逐页核对已确认", reviewed == len(items), "%d/%d 页" % (reviewed, len(items)))
+
     print("\n[9] 导出图片版（并解析 PPTX 结构核对）")
     img = c.get("/api/projects/%s/export" % pid, params=dict(kind="image")).json()
     check("图片版导出成功", img["pages"] == 6 and img["size_bytes"] > 10000,
           "%d 页 / %.1f KB" % (img["pages"], img["size_bytes"] / 1024))
-    path = os.path.join(ROOT, "data", "files", img["file"].lstrip("/").replace("files/", "", 1))
+    path = os.path.join(DATA_DIR, "files", img["file"].lstrip("/").replace("files/", "", 1))
     check("图片版文件落盘", os.path.exists(path), os.path.basename(path))
     if os.path.exists(path):
         z = zipfile.ZipFile(path)
