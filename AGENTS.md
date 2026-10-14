@@ -41,6 +41,13 @@ make lint          # 后端字节码编译 + 前端 tsc（改完随手跑）
 
 ## 环境
 
+- 风格预览图：`style-packs/styles/<id>/previews/` 里放的就是各风格的真实样例页（随仓库公开）。
+  若某台机器想用另一套图（例如不想公开的自制预览），放到同级的 `previews-local/`（已被 `.gitignore` 排除），服务端会**优先**用它：
+  ```bash
+  style_id=tech-deepblue
+  mkdir -p "style-packs/styles/$style_id/previews-local/"
+  cp /path/to/your/previews/* "style-packs/styles/$style_id/previews-local/"
+  ```
 - 服务常驻：bash server/start-lan.sh（:8641，脱离终端）；停：bash server/stop-daemon.sh
 - **重启的正确姿势（踩过坑，务必照做）**：改完后端代码后，用
   `bash server/stop-daemon.sh && bash server/start-lan.sh`；

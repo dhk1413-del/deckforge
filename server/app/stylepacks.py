@@ -95,16 +95,22 @@ def _dir_stamp(path: str):
         return (path, None, None)
 
 
-def _pack_summary(sid: str, style_md: str) -> Dict[str, Any]:
+def _preview_files(sid: str) -> tuple[str, List[str]]:
+    """本机私有预览优先；覆盖目录无图片时沿用公开示例。"""
     d = os.path.join(STYLE_DIR, "styles", sid)
+    for dir_name in ("previews-local", "previews"):
+        pv = os.path.join(d, dir_name)
+        files = [f for f in sorted(os.listdir(pv)) if f.lower().endswith((".png", ".jpg"))] if os.path.isdir(pv) else []
+        if files or dir_name == "previews":
+            return dir_name, files
+
+
+def _pack_summary(sid: str, style_md: str) -> Dict[str, Any]:
 
     fm = parse_front_matter(style_md)
     colors = fm.get("colors", {}) or {}
     meta = _meta_for(sid, fm)
-    previews = []
-    pv = os.path.join(d, "previews")
-    if os.path.isdir(pv):
-        previews = [f for f in sorted(os.listdir(pv)) if f.lower().endswith((".png", ".jpg"))]
+    preview_dir, previews = _preview_files(sid)
     cover = "cover.png" if "cover.png" in previews else (previews[0] if previews else "")
     return dict(
         id=sid,
@@ -117,8 +123,8 @@ def _pack_summary(sid: str, style_md: str) -> Dict[str, Any]:
         bg=colors.get("bg") or colors.get("neutral") or "#FFFFFF",
         ink=colors.get("ink", "#1E232E"),
         layouts=available_layouts(),
-        cover=("%s/%s/previews/%s" % (ASSET_URL, sid, quote(cover))) if cover else "",
-        previews=["%s/%s/previews/%s" % (ASSET_URL, sid, quote(f)) for f in previews],
+        cover=("%s/%s/%s/%s" % (ASSET_URL, sid, preview_dir, quote(cover))) if cover else "",
+        previews=["%s/%s/%s/%s" % (ASSET_URL, sid, preview_dir, quote(f)) for f in previews],
         preview_count=len(previews),
         source_type="system",
         version="1",
@@ -129,15 +135,18 @@ def _pack_summary(sid: str, style_md: str) -> Dict[str, Any]:
 def list_style_packs() -> List[Dict[str, Any]]:
     global _LIST_CACHE
     styles_dir = os.path.join(STYLE_DIR, "styles")
-    stamp = (_dir_stamp(styles_dir), _dir_stamp(os.path.join(STYLE_DIR, "layouts")))
+    style_ids = sorted(entry.name for entry in os.scandir(styles_dir) if entry.is_dir()) if os.path.isdir(styles_dir) else []
+    pack_stamps = tuple(
+        tuple(_dir_stamp(os.path.join(styles_dir, sid, subdir)) for subdir in ("", "previews", "previews-local"))
+        for sid in style_ids
+    )
+    stamp = (_dir_stamp(styles_dir), _dir_stamp(os.path.join(STYLE_DIR, "layouts")), pack_stamps)
     if _LIST_CACHE is not None and _LIST_CACHE[0] == stamp:
         return deepcopy(_LIST_CACHE[1])
     out = []
-    if os.path.isdir(styles_dir):
-        for sid in sorted(os.listdir(styles_dir)):
-            d = os.path.join(styles_dir, sid)
-            if os.path.isdir(d):
-                out.append(_pack_summary(sid, _read(os.path.join(d, "style.md"))))
+    for sid in style_ids:
+        d = os.path.join(styles_dir, sid)
+        out.append(_pack_summary(sid, _read(os.path.join(d, "style.md"))))
     _LIST_CACHE = (stamp, out)
     return deepcopy(out)
 
