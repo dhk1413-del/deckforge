@@ -3,7 +3,7 @@ import { cancelJob, beautifyOrigin, beautifyContinue, beautifyPreview, beautifyR
 import { IconFolder } from './Icons'
 import { Dropzone } from './Dropzone'
 import { ProgressPanel } from './ProgressPanel'
-import { ActionBar, FlowSteps, OverviewGrid, PageLightbox, PageRail, PagerArrow, withVersion, type FlowStep } from './FlowKit'
+import { ActionBar, FlowSteps, OverviewGrid, PageLightbox, PageRail, PageSelectGrid, PagerArrow, withVersion, type FlowStep } from './FlowKit'
 import { useToast } from './Toast'
 import { useModalFocus } from '../hooks/useModalFocus'
 import { useJobStream } from '../hooks/useJobStream'
@@ -342,27 +342,23 @@ export function BeautifyPanel({ packs, loadingPacks, onStepChange, resumeProject
       {step === 2 && origin && <>
         <div className="flex flex-wrap items-center gap-3"><h3 className="m-0 text-h2 font-semibold">识别页面</h3><span className="text-ink-sub">共 <span className="num">{origin.page_count}</span> 页 · 默认全选并保持原顺序</span></div>
         <p className="m-0 text-body-md text-primary">开启「保留原图」后，以原页画面为参考保留图片与版式；关闭后按确认文字重新设计。无可用文字时会保留原图。</p>
-        <div className="beautify-page-grid">
-          {origin.pages.map(page => {
-            const checked = selected.includes(page.page_no)
-            const kept = keepMaterial.includes(page.page_no)
-            const toggle = () => { setSelected(previous => checked ? previous.filter(n => n !== page.page_no) : [...previous, page.page_no].sort((a, b) => a - b)); setContentSaved(false) }
-            return <article key={page.page_no} className={cn('beautify-page-card', !checked && 'is-excluded')}>
-              <div className="beautify-page-preview">
-                <button type="button" disabled={busy} aria-pressed={checked} aria-label={`第 ${page.page_no} 页${checked ? '取消选择' : '选择'}`} onClick={toggle} className="beautify-page-select">
-                  <img src={page.image_url} alt={`原稿第 ${page.page_no} 页`} loading="lazy" />
-                  <span className="num beautify-page-number">{page.page_no}</span>
-                  <span className={cn('beautify-page-check', checked && 'is-checked')}>{checked ? '✓' : ''}</span>
-                </button>
-                <button type="button" aria-label={`移除第 ${page.page_no} 页选择`} disabled={busy || !checked} onClick={toggle} className="beautify-page-remove">×</button>
-              </div>
-              <div className="beautify-material-row">
-                <span className="text-caption text-ink-sub" title="保留整页画面作为视觉参考，包含原页图片和版式">保留原页图片素材</span>
-                <button type="button" role="switch" aria-checked={kept} aria-label={`第 ${page.page_no} 页保留原图`} disabled={busy || !checked} className="beautify-switch" onClick={() => { setKeepMaterial(previous => kept ? previous.filter(n => n !== page.page_no) : [...previous, page.page_no]); setContentSaved(false) }}><span /></button>
-              </div>
-            </article>
-          })}
-        </div>
+        <PageSelectGrid
+          pages={origin.pages.map(page => ({ pageNo: page.page_no, image: page.image_url, alt: `原稿第 ${page.page_no} 页` }))}
+          selected={selected}
+          disabled={busy}
+          onToggle={pageNo => {
+            const checked = selected.includes(pageNo)
+            setSelected(previous => checked ? previous.filter(n => n !== pageNo) : [...previous, pageNo].sort((a, b) => a - b))
+            setContentSaved(false)
+          }}
+          renderRow={(pageNo, checked) => {
+            const kept = keepMaterial.includes(pageNo)
+            return <div className="deck-option-row">
+              <span className="text-caption text-ink-sub" title="保留整页画面作为视觉参考，包含原页图片和版式">保留原页图片素材</span>
+              <button type="button" role="switch" aria-checked={kept} aria-label={`第 ${pageNo} 页保留原图`} disabled={busy || !checked} className="deck-switch" onClick={() => { setKeepMaterial(previous => kept ? previous.filter(n => n !== pageNo) : [...previous, pageNo]); setContentSaved(false) }}><span /></button>
+            </div>
+          }}
+        />
       </>}
       {step === 3 && content && currentPage && <>
         <div><h3 className="m-0 text-h2 font-semibold">核对页面内容</h3><p className="mb-0 mt-2 text-ink-sub">左侧切换页面、每页单独展示；提炼出的文字按 <span className="num">16:9</span> 页面样式直接呈现（内容超出时在页面内滚动），可原地修改。这里不调用模型、不补写原文以外的内容。</p></div>

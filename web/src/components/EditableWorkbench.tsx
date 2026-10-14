@@ -11,6 +11,7 @@ import { useJobStream } from '../hooks/useJobStream'
 import { useSlides } from '../hooks/useSlides'
 import { bytes, cn, pageNo } from '../lib/format'
 import type { EditableEngine, EditableResponse, EditpptStatus, ExportResponse, Slide } from '../types'
+import { ActionBar, PageLightbox } from './FlowKit'
 import { fmtSec, ProgressPanel } from './ProgressPanel'
 import { EmptyState, ErrorState, Loading, Notice } from './StateBlock'
 import { SlideThumb, ThumbGrid } from './ThumbGrid'
@@ -23,6 +24,7 @@ export function EditableWorkbench({ projectId, autoStart = false }: { projectId:
   const toast = useToast()
   const [engine, setEngine] = useState<EditableEngine | null>(null)
   const [selected, setSelected] = useState<number[]>([])
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
   const [editInfo, setEditInfo] = useState<EditableResponse | null>(null)
   const [editJobId, setEditJobId] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -204,7 +206,7 @@ export function EditableWorkbench({ projectId, autoStart = false }: { projectId:
       ) : (
         <>
           <ThumbGrid>
-            {readySlides.map((s) => (
+            {readySlides.map((s, index) => (
               <SlideThumb
                 key={s.slide_id}
                 pageNoValue={s.page_no}
@@ -214,103 +216,96 @@ export function EditableWorkbench({ projectId, autoStart = false }: { projectId:
                 selected={selectedSet.has(s.page_no)}
                 selectable
                 onToggle={() => toggle(s.page_no)}
+                onOpen={() => setLightboxIndex(index)}
               />
             ))}
           </ThumbGrid>
-          <div className="panel-alt mt-3 flex flex-wrap items-center gap-3 text-body-sm">
-            <button
-              type="button"
-              className="btn btn-secondary h-8! text-body-sm"
-              disabled={!readyPageNos.length}
-              onClick={() => setSelected(readyPageNos)}
-            >
-              全选
-            </button>
-            <button
-              type="button"
-              className="btn btn-secondary h-8! text-body-sm"
-              disabled={!pendingPages.length}
-              onClick={() => setSelected(pendingPages)}
-              title="只勾「还没转成可编辑」的页"
-            >
-              只选未转页（{pendingPages.length}）
-            </button>
-            <button
-              type="button"
-              className="btn btn-secondary h-8! text-body-sm"
-              disabled={!selected.length}
-              onClick={() => setSelected([])}
-            >
-              清空
-            </button>
-            <span className="flex-1" />
-            <span className="tag num">已勾选 {selected.length} 页</span>
-            <span className="num text-ink-sub">{estLabel}</span>
-          </div>
         </>
       )}
     </div>
   )
 
   const actionBar = (
-    <div className="card">
-      <div className="flex flex-wrap items-center gap-3">
+    <ActionBar>
+      <span className="tag num">已勾选 {selected.length} 页</span>
+      <span className="num text-ink-sub">{estLabel}</span>
+      <button
+        type="button"
+        className="btn btn-secondary rounded-full"
+        disabled={!readyPageNos.length}
+        onClick={() => setSelected(readyPageNos)}
+      >
+        全选
+      </button>
+      <button
+        type="button"
+        className="btn btn-secondary rounded-full"
+        disabled={!pendingPages.length}
+        onClick={() => setSelected(pendingPages)}
+        title="只勾「还没转成可编辑」的页"
+      >
+        只选未转页（{pendingPages.length}）
+      </button>
+      <button
+        type="button"
+        className="btn btn-secondary rounded-full"
+        disabled={!selected.length}
+        onClick={() => setSelected([])}
+      >
+        清空
+      </button>
+      {hiRunning && <span className="status status-info">转换进行中 · 当前页约 13 分钟</span>}
+      {editInfo && (
+        <span className="num text-ink-sub">
+          本次 {editInfo.estimate.pages} 页 · 预计 ~{fmtSec(editInfo.estimate.seconds * 1000)}
+        </span>
+      )}
+      <span className="flex-1" />
+      {hiRunning && (
         <button
           type="button"
-          className="btn btn-primary"
-          disabled={submitting || hiRunning || !selected.length || (engine ? !engine.ok : false)}
-          onClick={() => start()}
-          title={
-            !selected.length
-              ? '先勾选要转的页'
-              : engine && !engine.ok
-                ? `引擎不可用：${engine.reason ?? ''}`
-                : 'POST /api/projects/{id}/editable（engine=editppt）'
+          className="btn btn-secondary rounded-full"
+          onClick={() =>
+            cancelEditable(projectId)
+              .then((r) => {
+                toast.info('已请求停止', r.message)
+                setHiRunning(false)
+                reloadHi()
+              })
+              .catch((e: ApiError) => toast.error('停止失败', e.detail))
           }
         >
-          {submitting ? '提交中…' : `开始转可编辑（${selected.length} 页）`}
+          停止
         </button>
+      )}
 
-        {hiRunning && (
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={() =>
-              cancelEditable(projectId)
-                .then((r) => {
-                  toast.info('已请求停止', r.message)
-                  setHiRunning(false)
-                  reloadHi()
-                })
-                .catch((e: ApiError) => toast.error('停止失败', e.detail))
-            }
-          >
-            停止
-          </button>
-        )}
+      {!hiRunning && hiStatus?.resumable && (
+        <button
+          type="button"
+          className="btn btn-secondary rounded-full"
+          onClick={() => start(true)}
+          title="复用现场：已通过校验的页会跳过，不重复重建"
+        >
+          继续转换（已完成 {hiStatus.recorded}/{hiStatus.total} 页）
+        </button>
+      )}
 
-        {!hiRunning && hiStatus?.resumable && (
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={() => start(true)}
-            title="复用现场：已通过校验的页会跳过，不重复重建"
-          >
-            继续转换（已完成 {hiStatus.recorded}/{hiStatus.total} 页）
-          </button>
-        )}
-
-        {hiRunning && <span className="status status-info">转换进行中 · 当前页约 13 分钟</span>}
-
-        <span className="flex-1" />
-        {editInfo && (
-          <span className="num text-ink-sub">
-            本次 {editInfo.estimate.pages} 页 · 预计 ~{fmtSec(editInfo.estimate.seconds * 1000)}
-          </span>
-        )}
-      </div>
-      {hiStatus?.note && <p className="mt-2 mb-0 text-body-sm text-ink-sub">{hiStatus.note}</p>}
-    </div>
+      <button
+        type="button"
+        className="btn btn-primary rounded-full px-6"
+        disabled={submitting || hiRunning || !selected.length || (engine ? !engine.ok : false)}
+        onClick={() => start()}
+        title={
+          !selected.length
+            ? '先勾选要转的页'
+            : engine && !engine.ok
+              ? `引擎不可用：${engine.reason ?? ''}`
+              : 'POST /api/projects/{id}/editable（engine=editppt）'
+        }
+      >
+        {submitting ? '提交中…' : `开始转可编辑（${selected.length} 页）`}
+      </button>
+    </ActionBar>
   )
 
   const artifactCard = (
@@ -351,7 +346,6 @@ export function EditableWorkbench({ projectId, autoStart = false }: { projectId:
   return (
     <div className="flex flex-col gap-4">
       {engineBanner}
-      {actionBar}
       {editError && <ErrorState error={editError} onRetry={() => start()} title="提交转换失败" />}
       {editJobId && <ProgressPanel job={stream} stageLabel="精细重建进度（SSE）" />}
       {grid}
@@ -359,6 +353,20 @@ export function EditableWorkbench({ projectId, autoStart = false }: { projectId:
       <p className="m-0 text-caption text-ink-sub">
         数据来源：GET /api/projects/{projectId}/slides · 现场 GET /api/projects/{projectId}/editppt
       </p>
+      {hiStatus?.note && <p className="mt-2 mb-0 text-body-sm text-ink-sub">{hiStatus.note}</p>}
+      {actionBar}
+      {lightboxIndex !== null && readySlides.length > 0 && <PageLightbox
+        pages={readySlides.map((slide, index) => ({
+          image: slide.image_url,
+          label: <>P<span className="num">{slide.page_no}</span> · 第 <span className="num">{slide.page_no}</span> 页{slide.title ? ` · ${slide.title}` : ''}</>,
+          counter: <>P<span className="num">{slide.page_no}</span> · 第 <span className="num">{index + 1}</span> / <span className="num">{readySlides.length}</span> 页</>,
+        }))}
+        index={lightboxIndex}
+        onIndex={setLightboxIndex}
+        onClose={() => setLightboxIndex(null)}
+        ariaLabel={`第 ${readySlides[lightboxIndex]?.page_no ?? ''} 页放大预览`}
+        emptyText="加载原页…"
+      />}
     </div>
   )
 }

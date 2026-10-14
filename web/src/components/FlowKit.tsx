@@ -52,6 +52,47 @@ export function FlowSteps({ steps, current, locks, busy, onJump, onLocked, label
   )
 }
 
+export interface SelectablePage {
+  pageNo: number
+  image: string
+  /** 图片 alt 文案；不传则用「第 N 页」 */
+  alt?: string
+}
+
+/** 页面选择网格：附加行与放大行为由调用方提供。 */
+export function PageSelectGrid({ pages, selected, disabled, onToggle, onZoom, zoomLabel, renderRow }: {
+  pages: SelectablePage[]
+  selected: number[]
+  disabled?: boolean
+  onToggle: (pageNo: number) => void
+  /** 传了才显示放大按钮（点了由调用方打开灯箱） */
+  onZoom?: (pageNo: number) => void
+  zoomLabel?: (pageNo: number) => string
+  /** 每页卡片底部的附加行；选中状态由调用方自己判断 */
+  renderRow?: (pageNo: number, checked: boolean) => ReactNode
+}) {
+  return (
+    <div className="deck-page-grid">
+      {pages.map(page => {
+        const checked = selected.includes(page.pageNo)
+        const toggle = () => onToggle(page.pageNo)
+        return <article key={page.pageNo} className={cn('deck-page-card', !checked && 'is-excluded')}>
+          <div className="deck-page-preview">
+            <button type="button" disabled={disabled} aria-pressed={checked} aria-label={`第 ${page.pageNo} 页${checked ? '取消选择' : '选择'}`} onClick={toggle} className="deck-page-select">
+              <img src={page.image} alt={page.alt ?? `第 ${page.pageNo} 页`} loading="lazy" />
+              <span className="num deck-page-number">{page.pageNo}</span>
+              <span className={cn('deck-page-check', checked && 'is-checked')}>{checked ? '✓' : ''}</span>
+            </button>
+            <button type="button" aria-label={`移除第 ${page.pageNo} 页选择`} disabled={disabled || !checked} onClick={toggle} className="deck-page-remove">×</button>
+            {onZoom && <button type="button" aria-label={zoomLabel?.(page.pageNo) ?? `放大第 ${page.pageNo} 页`} disabled={disabled} onClick={() => onZoom(page.pageNo)} className="deck-page-zoom">⤢</button>}
+          </div>
+          {renderRow?.(page.pageNo, checked)}
+        </article>
+      })}
+    </div>
+  )
+}
+
 export interface RailItem {
   key: number | string
   /** 主文字（如「第 3 页」或该页标题） */
