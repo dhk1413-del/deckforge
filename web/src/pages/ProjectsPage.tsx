@@ -1,6 +1,6 @@
 /** 项目：卡片网格（封面 / 标题 / 元信息 / 状态 / 下载）+ 名称·阶段·状态筛选；卡片进工作台 */
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { configureProject, deleteProject, listProjects } from '../api'
+import { ApiError, configureProject, deleteProject, listProjects } from '../api'
 import { useAsync } from '../hooks/useAsync'
 import { projectStageLabel, statusLabel } from '../lib/format'
 import { EmptyState, ErrorState, Loading } from '../components/StateBlock'
@@ -76,13 +76,24 @@ function RenameDialog({ project, onClose, onSaved }: { project: Project; onClose
 /** 删除确认弹窗（真实调用 DELETE /projects/{id}，不可撤销）：逐条列出会消失的东西，并说明账本保留 */
 function DeleteDialog({ project, onClose, onDeleted }: { project: Project; onClose: () => void; onDeleted: (title: string) => void }) {
   const modalRef = useModalFocus(onClose)
+  const inflight = useRef(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const remove = async () => {
+    if (inflight.current) return
+    inflight.current = true
     setBusy(true); setError(null)
-    try { await deleteProject(project.id); onDeleted(project.title); onClose() }
-    catch (e) { setError((e as { detail?: string })?.detail || String(e)) }
-    finally { setBusy(false) }
+    try { await deleteProject(project.id) }
+    catch (e) {
+      if (!(e instanceof ApiError && e.status === 404)) {
+        inflight.current = false
+        setBusy(false)
+        setError((e as { detail?: string })?.detail || String(e))
+        return
+      }
+    }
+    onDeleted(project.title)
+    onClose()
   }
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" ref={modalRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="删除项目" onClick={onClose}>
@@ -179,7 +190,18 @@ export function ProjectsPage() {
   const toast = useToast()
   const projects = useAsync(listProjects, [])
   useEffect(()=>{window.addEventListener('focus',projects.reload);const poll=window.setInterval(projects.reload,5000);return()=>{window.removeEventListener('focus',projects.reload);window.clearInterval(poll)}},[projects.reload])
-  const items = projects.data?.items ?? []
+  const [deletedIds, setDeletedIds] = useState<string[]>([])
+  useEffect(() => {
+    if (!projects.data) return
+    const listedIds = new Set(projects.data.items.map(project => project.id))
+    setDeletedIds(ids => {
+      const remaining = ids.filter(id => listedIds.has(id))
+      return remaining.length === ids.length ? ids : remaining
+    })
+  }, [projects.data])
+  const items = useMemo(
+    () => (projects.data?.items ?? []).filter(project => !deletedIds.includes(project.id)),
+    [projects.data, deletedIds])
   const [filters, setFilters] = useState(readQuery)
   useEffect(() => {
     const sync = () => setFilters(readQuery())
@@ -242,7 +264,11 @@ export function ProjectsPage() {
       {filtered.length > 0 && <div className="project-grid">
         {filtered.map(project => <ProjectCard key={project.id} project={project}
           onRenamed={() => {projects.reload(); toast.success('已重命名')}}
-          onDeleted={(title) => {projects.reload(); toast.success('已删除项目', title)}} />)}
+          onDeleted={(title) => {
+            setDeletedIds(ids => ids.includes(project.id) ? ids : [...ids, project.id])
+            projects.reload()
+            toast.success('已删除项目', title)
+          }} />)}
       </div>}
     </div>
   )
