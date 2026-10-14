@@ -1454,8 +1454,26 @@ app.mount(stylepacks.ASSET_URL, StaticFiles(directory=os.path.join(config.STYLE_
           name="style-assets")
 
 WEB_DIST = os.path.join(config.ROOT, "web", "dist")
+
+
+class WebStaticFiles(StaticFiles):
+    """前端静态资源：HTML 不缓存，其余交给默认行为。
+
+    前端包名带内容哈希（index-<hash>.js），新构建自然会换名字；真正会让人
+    「明明改了却还看到旧界面」的是 index.html 被浏览器按启发式缓存住 ——
+    所以只给 HTML 加 no-cache（仍带 ETag，命中时走 304，开销可忽略）。
+    """
+
+    async def get_response(self, path, scope):
+        response = await super().get_response(path, scope)
+        ctype = response.headers.get("content-type", "")
+        if ctype.startswith("text/html"):
+            response.headers["Cache-Control"] = "no-cache"
+        return response
+
+
 if os.path.isdir(WEB_DIST):
-    app.mount("/", StaticFiles(directory=WEB_DIST, html=True), name="web")
+    app.mount("/", WebStaticFiles(directory=WEB_DIST, html=True), name="web")
 else:
     @app.get("/")
     def index() -> JSONResponse:
