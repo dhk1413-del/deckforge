@@ -80,6 +80,9 @@ bash server/start-lan.sh          # 打开 http://127.0.0.1:8641
 
 ## 命令
 
+第一次跑自检前先执行一次 `bash server/start-lan.sh`：它会装好 Python 依赖与 `server/pptx` 的
+PptxGenJS（原生可编辑导出要用），否则相关用例会失败。`tools/verify_all.py` 检测到缺依赖时也会提示。
+
 ```bash
 bash server/start-lan.sh        # 启动（脱离终端常驻）
 bash server/stop-daemon.sh      # 停止

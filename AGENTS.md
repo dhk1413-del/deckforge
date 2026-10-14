@@ -66,16 +66,14 @@ make lint          # 后端字节码编译 + 前端 tsc（改完随手跑）
   # 停：pkill -f 'server/watchdog.sh'
   ```
   实测：手动 `stop-daemon.sh` 后 30 秒内被自动拉起。
-- **改代码的分工**：代码修改优先交给 **Codex CLI**（`~/.npm-global/bin/codex`，即 ChatGPT.app 内置的那份 codex-cli），
-  非交互用法（探测通过，模型 `gpt-6.1-sol`）：
-  ```bash
-  export PATH="$HOME/.npm-global/bin:$PATH"
-  HTTPS_PROXY=http://127.0.0.1:65532 HTTP_PROXY=http://127.0.0.1:65532 \
-    codex exec --skip-git-repo-check --sandbox workspace-write -C "$PWD" "<改动要求>"
-  ```
-  默认 sandbox 是 `read-only`，要落盘必须显式给 `--sandbox workspace-write`；Codex **没额度或不可用时**，
-  再由 DeepSeek（当前 agent）完成同样的改动。改完都要跑 `make lint` / `make verify-fast` 再交付。
-- 代理：**7897 已失效**，当前可用的是 `http://127.0.0.1:65532`（Codex / GitHub 都走它）；
+- **改代码的分工**：由当前 agent **直接改**（用户 2026-10-14 明确：不必再委派 Codex CLI）。
+  改动前先读相关文件与契约，改完必须跑 `make lint` / `make verify-fast`，涉及界面还要实机验证（截图或 DOM 断言）再交付。
+  （历史背景：Codex CLI 在 `~/.npm-global/bin/codex`，非交互用法需要 `--sandbox workspace-write`；
+  但当前流程不再依赖它，仅当用户临时要求时才用。）
+- **首次自检前先装依赖**：干净检出上直接跑 `make verify` 会因缺 `.venv` 与 `server/pptx/node_modules`
+  出现失败。先执行一次 `bash server/start-lan.sh`（它经 `server/run.sh` 装 Python 依赖与 PptxGenJS），
+  再跑自检；`tools/verify_all.py` 已会在缺依赖时打印这条提示。
+- 代理：**7897 已失效**，当前可用的是 `http://127.0.0.1:65532`（GitHub 推送走它）；
   GitHub 直连时通时断，推送一律带 `-c http.proxy=http://127.0.0.1:65532`。
 - GitHub 推送凭据存在 macOS 钥匙串：`security find-generic-password -a dhk1413-del -s deckforge-github-token -w`
   （token 不落明文；撤销走 GitHub Settings → Applications）。

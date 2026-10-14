@@ -260,6 +260,8 @@ tail -f data/logs/watchdog.log   # 看日志</code></pre>
 </tbody></table>
 <hr/>
 <h2>12. 自检</h2>
+<p>第一次跑之前先启动一次服务：<code>bash server/start-lan.sh</code>。它会装好 Python 依赖与 <code>server/pptx</code> 的</p>
+<p>PptxGenJS（原生可编辑导出要用）；没装就跑自检，会有几条用例失败，<code>tools/verify_all.py</code> 也会提示原因。</p>
 <pre><code>make verify        # 14 套离线回归 + 前端构建 + 线上只读冒烟（需要服务在跑）
 make verify-fast   # 不联网、不调模型、不花钱
 make lint          # 后端字节码编译 + 前端 tsc</code></pre>

@@ -83,6 +83,11 @@ def main() -> int:
     with_build = "--no-build" not in args
     with_live = "--live" in args
 
+    if not os.path.exists(VENV):
+        print("⚠️ 未找到 .venv：先执行一次 `bash server/start-lan.sh`（会自动建虚拟环境并安装 Python 依赖），再跑自检。")
+    if not os.path.exists(os.path.join(ROOT, "server/pptx/node_modules/pptxgenjs")):
+        print("⚠️ 未找到 server/pptx/node_modules（PptxGenJS）：原生可编辑导出相关用例会失败。先执行一次 `bash server/start-lan.sh` 自动安装，再跑自检。")
+
     rows = []
     for name, desc in TOOLS:
         ok, detail = run_tool(name)
