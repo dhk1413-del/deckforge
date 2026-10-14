@@ -28,6 +28,16 @@ export function ProviderHealth({ children }: { children: ReactNode }) {
   return <HealthContext.Provider value={health}>{children}</HealthContext.Provider>
 }
 
+/**
+ * 文本模型是否已配置（复用顶栏那份健康探测，不额外发请求）。
+ * 返回 null 表示探测还没回来——调用方给中性文案，别当成「未配置」。
+ */
+export function useTextReady(): boolean | null {
+  const state = useContext(HealthContext)
+  if (!state?.data) return null
+  return !!state.data.providers.text?.deepseek
+}
+
 export function ProviderStatus() {
   const healthState = useContext(HealthContext)
   const [open, setOpen] = useState(false)

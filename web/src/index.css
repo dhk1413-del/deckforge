@@ -202,3 +202,20 @@
 @media (min-width: 1024px) { .beautify-content-workspace { grid-template-columns: 180px minmax(0, 1fr); } }
 @media (max-width: 1023px) { .beautify-content-sidebar .deck-rail { flex-direction: row; max-height: none; overflow-x: auto; } .beautify-content-sidebar .deck-rail-item { width: auto; flex-shrink: 0; } }
 @media (max-width: 639px) { .beautify-content-toolbar { padding: 12px; } .beautify-content-slide { min-height: 320px; padding: 24px 18px; } .beautify-content-text { padding: 14px; } }
+
+/* 大纲生成加载页：居中卡片 + 不确定进度条 + 真实元信息行（对应无进度百分比的接口） */
+@keyframes deck-spin { to { transform: rotate(360deg); } }
+@keyframes deck-loading-slide { 0% { transform: translateX(-110%); } 100% { transform: translateX(330%); } }
+.deck-loading { display: flex; flex-direction: column; align-items: center; gap: 20px; }
+.deck-loading-card { display: flex; width: 100%; max-width: 720px; flex-direction: column; align-items: center; gap: 10px; padding: 44px 32px; border: 1px solid var(--color-border); border-radius: 24px; background: var(--color-surface); box-shadow: var(--shadow-card); }
+.deck-spinner { width: 34px; height: 34px; border: 3px solid var(--color-border); border-top-color: var(--color-primary); border-radius: 50%; animation: deck-spin .9s linear infinite; }
+.deck-loading-title { margin: 8px 0 0; font-size: var(--text-h2); font-weight: 600; }
+.deck-loading-sub { margin: 0; color: var(--color-ink-sub); }
+.deck-loading-bar { position: relative; width: 100%; max-width: 420px; height: 6px; margin: 8px 0 4px; overflow: hidden; border-radius: 999px; background: var(--color-border); }
+.deck-loading-bar i { display: block; width: 32%; height: 100%; border-radius: 999px; background: var(--color-primary); animation: deck-loading-slide 1.5s ease-in-out infinite; }
+.deck-loading-hint { margin: 0; color: var(--color-ink-muted); font-size: var(--text-body-sm); text-align: center; }
+.deck-loading-meta { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px 32px; color: var(--color-ink-sub); font-size: var(--text-body-sm); }
+.deck-loading-meta b { color: var(--color-ink); }
+.deck-loading-actions { width: 100%; max-width: 720px; }
+@media (max-width: 639px) { .deck-loading-card { padding: 32px 20px; } .deck-loading-meta { gap: 8px 18px; } }
+@media (prefers-reduced-motion: reduce) { .deck-spinner, .deck-loading-bar i { animation: none; } }

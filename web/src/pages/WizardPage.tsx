@@ -20,6 +20,7 @@ import {
 } from '../api'
 import { ActionBar, FlowSteps, PageSelectGrid } from '../components/FlowKit'
 import { ContentEditor } from '../components/ContentEditor'
+import { useTextReady } from '../components/ProviderStatus'
 import { ProjectWorkbench } from '../components/ProjectWorkbench'
 import { SlidePreview } from '../components/SlidePreview'
 import { EmptyState, ErrorState, Loading, Notice, NotConfiguredBanner } from '../components/StateBlock'
@@ -271,6 +272,7 @@ export function WizardPage() {
   }
 
   const keptPages = useMemo(() => pages.filter((p) => p.keep && p.valid !== false), [pages])
+  const textReady = useTextReady()   // 复用顶栏那份健康探测：用于加载页写清这次走模型还是本地切页
   const categories = useMemo(
     () => ['全部', ...Array.from(new Set(packs.map((p) => p.category)))],
     [packs],
@@ -773,7 +775,38 @@ export function WizardPage() {
     </div>
   )
 
-  const outlineStep = (
+  const outlineStep = outlining && !outline ? (
+    <div className="deck-loading">
+      <section className="deck-loading-card" role="status" aria-live="polite" aria-busy="true">
+        <span className="deck-spinner" aria-hidden="true" />
+        <h3 className="deck-loading-title">正在生成 PPT 大纲…</h3>
+        <p className="deck-loading-sub">正在读取你的文档内容…</p>
+        <div className="deck-loading-bar" role="progressbar" aria-label="大纲生成进度" aria-valuetext="生成中">
+          <i />
+        </div>
+        <p className="deck-loading-hint">请保持当前页面打开，生成完成后会自动显示页清单。</p>
+        <p className="deck-loading-hint">
+          {textReady === true
+            ? '正在调用 DeepSeek 提炼标题与要点，通常十几秒到一分钟。'
+            : textReady === false
+              ? '未配置文本模型：本次按段落本地切页，通常几秒完成。'
+              : '未配置文本模型时会按段落本地切页；已配置则由模型提炼标题与要点。'}
+        </p>
+      </section>
+
+      <div className="deck-loading-meta">
+        <span>文档字数 <b className="num">{parsed?.char_count != null ? `约 ${parsed.char_count} 字` : '—'}</b></span>
+        <span>目标页数 <b className="num">{targetPages} 页</b></span>
+        <span>每页讲解 <b className="num">{pageMinutes} 分钟</b></span>
+      </div>
+
+      <ActionBar className="deck-loading-actions">
+        <span className="text-ink-sub">目标 <span className="num">{targetPages}</span> 页</span>
+        <button type="button" className="btn btn-secondary rounded-full" disabled title="大纲生成中，请稍候">重新生成大纲</button>
+        <button type="button" className="btn btn-primary rounded-full px-6" disabled title="大纲生成完成后自动进入">继续：页面确认 ›</button>
+      </ActionBar>
+    </div>
+  ) : (
     <div className="flex flex-col gap-4">
       <div className="card">
         <div className="flex flex-wrap items-center gap-3">
@@ -801,8 +834,6 @@ export function WizardPage() {
             {outlining ? '梳理中…' : outline ? '重新梳理' : '开始梳理'}
           </button>
         </div>
-
-        {outlining && !outline && <Loading rows={3} label="内容梳理中…" />}
 
         {outlineMeta?.configured === false && (
           <div className="mb-3">
