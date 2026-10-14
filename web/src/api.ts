@@ -1,7 +1,8 @@
 /**
- * DeckForge API 客户端 —— 全部请求走 /api（dev 由 Vite proxy 转 127.0.0.1:8640）
+ * DeckForge API 客户端 —— 全部请求走 /api（标准部署由 8641 后端托管；开发模式由 Vite proxy 转 127.0.0.1:8640）
  * 错误统一抛 ApiError（含后端 {detail} 中文信息 + 网络层可读信息）。
  */
+import { BACKEND_HINT } from './lib/format'
 import type {
   BeautifyJobResponse,
   BeautifyStatus,
@@ -64,9 +65,6 @@ export class SubmissionCancelled extends Error {
   }
 }
 
-/** 无后端时的可读提示（本机 8640 未启动 / 网络中断） */
-const OFFLINE_HINT = '后端未响应（127.0.0.1:8640）——请先启动 DeckForge 后端服务，然后点「重试」'
-
 async function toApiError(res: Response): Promise<ApiError> {
   let detail = `请求失败（HTTP ${res.status}）`
   try {
@@ -86,7 +84,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   try {
     res = await fetch(`${API_BASE}${path}`, init)
   } catch {
-    throw new ApiError(OFFLINE_HINT, 0, true)
+    // 服务未启动或网络中断时，使用共享的标准部署提示。
+    throw new ApiError(BACKEND_HINT, 0, true)
   }
   if (!res.ok) throw await toApiError(res)
   if (res.status === 204) return undefined as T
@@ -157,7 +156,7 @@ export async function importPages(id: string, files: File[]): Promise<ImportPage
   try {
     res = await fetch(`${API_BASE}/projects/${encodeURIComponent(id)}/import-pages`, { method: 'POST', body: form })
   } catch {
-    throw new ApiError(OFFLINE_HINT, 0, true)
+    throw new ApiError(BACKEND_HINT, 0, true)
   }
   if (!res.ok) throw await toApiError(res)
   return (await res.json()) as ImportPagesResponse
@@ -174,7 +173,7 @@ export async function uploadSource(id: string, file: File): Promise<UploadRespon
       body: form,
     })
   } catch {
-    throw new ApiError(OFFLINE_HINT, 0, true)
+    throw new ApiError(BACKEND_HINT, 0, true)
   }
   if (!res.ok) throw await toApiError(res)
   return (await res.json()) as UploadResponse
@@ -257,7 +256,7 @@ export async function uploadNotesPptx(file: File): Promise<NotesJobDetail> {
   try {
     res = await fetch(`${API_BASE}/notes/upload`, { method: 'POST', body: form })
   } catch {
-    throw new ApiError(OFFLINE_HINT, 0, true)
+    throw new ApiError(BACKEND_HINT, 0, true)
   }
   if (!res.ok) throw await toApiError(res)
   return (await res.json()) as NotesJobDetail

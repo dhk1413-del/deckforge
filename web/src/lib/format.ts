@@ -1,5 +1,8 @@
 /** 展示层格式化 —— 数字一律等宽（class="num"），金额 4 位小数（契约） */
 
+/** 标准部署的离线提示；开发代理端口由 Vite 配置决定。 */
+export const BACKEND_HINT = '后端未响应 —— 在项目根目录执行 bash server/start-lan.sh（默认 127.0.0.1:8641），然后点「重试」'
+
 export const cn = (...parts: Array<string | false | null | undefined>) =>
   parts.filter(Boolean).join(' ')
 

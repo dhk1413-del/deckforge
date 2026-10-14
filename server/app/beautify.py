@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import sys
 import tempfile
 import threading
 
@@ -264,7 +265,7 @@ def beautify_page(pid, page_no, tokens, mode='img2img', size='2K', text=None):
 
 
 # Fixed reconstruction contract, read literally from §4.1.
-REBUILD_PROMPT = '''# 任务：把每页图片重建为「PowerPoint 原生可编辑页面」，输出 out.pptx
+REBUILD_PROMPT_TEMPLATE = '''# 任务：把每页图片重建为「PowerPoint 原生可编辑页面」，输出 out.pptx
 
 工作目录里有（每页一组，页号 N 两位数）：
 - pages/pNN.png —— 第 N 页的【视觉参考图】（已美化，含版式/配色/装饰）
@@ -272,8 +273,8 @@ REBUILD_PROMPT = '''# 任务：把每页图片重建为「PowerPoint 原生可�
 - style.json     —— 配色令牌
 
 硬性要求（违反任何一条都算失败）：
-1. 用 python-pptx 生成 out.pptx。解释器固定用这个（已装 python-pptx 1.0.2）：
-   /workspace/智能ppt生成工作台/.venv/bin/python
+1. 用 python-pptx 生成 out.pptx。解释器用当前服务进程的解释器（已装 python-pptx）：
+   {python_executable}
 2. 幻灯片尺寸 13.333 × 7.5 英寸（16:9），**每页一张幻灯片**，顺序与页号一致。
 3. 页面上**所有文字**必须是**真正的文本框**（slide.shapes.add_textbox），内容**逐字取自 pages/pNN.txt**：
    不改写、不翻译、不精简、不漏字、不编造原文没有的文字。字号/位置/对齐参照 pNN.png。
@@ -282,6 +283,10 @@ REBUILD_PROMPT = '''# 任务：把每页图片重建为「PowerPoint 原生可�
    局部插画/照片允许裁切后作为图片插入，但不得用整页图代替排版。
 6. 只写工作目录内的文件，不做 git 提交，不修改工作目录以外的文件。
 7. 完成后，最后一条消息输出一行：DONE out.pptx pages=<页数>'''
+
+
+def rebuild_prompt() -> str:
+    return REBUILD_PROMPT_TEMPLATE.format(python_executable=sys.executable)
 
 
 def convert_with_codex(pid, items, out_path, tokens, style_name):
@@ -297,7 +302,7 @@ def convert_with_codex(pid, items, out_path, tokens, style_name):
         shutil.copyfile(work / 'pages' / (name + '.png'), work / (name + '.png'))
         (work / (name + '.txt')).write_text(text, encoding='utf-8')
     (work / 'style.json').write_text(json.dumps(tokens, ensure_ascii=False), encoding='utf-8')
-    result = codex_engine.run(REBUILD_PROMPT, str(work))
+    result = codex_engine.run(rebuild_prompt(), str(work))
     output = work / 'out.pptx'
     try:
         if not result['ok']:

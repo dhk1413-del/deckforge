@@ -12,10 +12,9 @@
  * 只读依赖 ../api 的 ApiError —— 后端 {detail} 里的中文信息原样抛给界面展示，不吞。
  */
 import { ApiError } from '../api'
+import { BACKEND_HINT } from './format'
 
 const API_BASE = '/api'
-/** 与既有 api.ts 保持同一句文案：本机 8640 未启动时给人「去哪、怎么重试」 */
-const OFFLINE_HINT = '后端未响应（127.0.0.1:8640）——请先启动 DeckForge 后端服务，然后点「重试」'
 
 /* ---------------- 类型 ---------------- */
 
@@ -143,7 +142,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   try {
     res = await fetch(`${API_BASE}${path}`, init)
   } catch {
-    throw new ApiError(OFFLINE_HINT, 0, true)
+    // 离线错误与 api.ts、StateBlock 共用标准部署提示，说明启动方式与重试操作。
+    throw new ApiError(BACKEND_HINT, 0, true)
   }
   if (!res.ok) throw await toApiError(res)
   if (res.status === 204) return undefined as T

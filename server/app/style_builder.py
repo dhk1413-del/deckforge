@@ -1333,8 +1333,10 @@ def build_tokens(palette: Dict[str, Any], typo: Dict[str, Any], rounded: Dict[st
         typography="{typography.body-md}")
     add("deep-block", "{colors.neutral}" if "neutral" in colors else "{colors.bg}",
         textColor="{colors.ink}", rounded="{rounded.sm}", padding="16")
-    if "accent-bar" or "accent" in colors:
-        add("accent-bar", "{colors.accent}" if "accent" in colors else "{colors.tertiary}", rounded="{rounded.sm}")
+    if "accent" in colors or "accent-bar" in colors:
+        accent_color = next((key for key in ("accent", "tertiary", "primary") if key in colors), None)
+        if accent_color is not None:
+            add("accent-bar", "{colors.%s}" % accent_color, rounded="{rounded.sm}")
     if "tertiary" in colors:
         add("accent-rule", "{colors.tertiary}", height="3px")
     if "accent-2" in colors:

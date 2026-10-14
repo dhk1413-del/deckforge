@@ -1,6 +1,7 @@
 /** 三态组件：加载 / 空 / 错误 + 降级提示条（components.md：空态给一句话 + 一个主按钮；错误态写清「缺什么 · 去哪填 · 怎么重试」） */
 import type { ReactNode } from 'react'
 import type { ApiError } from '../api'
+import { BACKEND_HINT } from '../lib/format'
 import { Link } from '../router'
 
 /** 骨架加载：占位块保持高度，避免布局跳动 */
@@ -50,8 +51,8 @@ export function EmptyState({
 function explain(error: ApiError): { missing: string; where: string } {
   if (error.offline) {
     return {
-      missing: '没有连上后端服务（127.0.0.1:8640 无响应）',
-      where: '到项目根目录启动 DeckForge 后端（uvicorn 监听 8640），或检查它是否被防火墙/代理拦截',
+      missing: BACKEND_HINT,
+      where: '按上述命令启动后端，或检查服务是否被防火墙/代理拦截',
     }
   }
   if (error.status === 404) {
