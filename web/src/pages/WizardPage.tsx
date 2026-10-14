@@ -18,12 +18,13 @@ import {
   uploadSource,
   type ApiError,
 } from '../api'
+import { ActionBar, FlowSteps, PageSelectGrid } from '../components/FlowKit'
 import { ContentEditor } from '../components/ContentEditor'
 import { ProjectWorkbench } from '../components/ProjectWorkbench'
 import { SlidePreview } from '../components/SlidePreview'
 import { EmptyState, ErrorState, Loading, Notice, NotConfiguredBanner } from '../components/StateBlock'
 import { StylePackCard } from '../components/StylePackCard'
-import { Steps, type WizardStepNo } from '../components/Steps'
+import { WIZARD_STEPS, type WizardStepNo } from '../components/Steps'
 import { useToast } from '../components/Toast'
 import { Link, navigate, readQuery, registerLeaveGuard, useRoute } from '../router'
 import { takePendingFile } from '../pendingFile'
@@ -707,26 +708,47 @@ export function WizardPage() {
           </section>
         )}
 
-        <div className="flex gap-2 mb-3">
+        <PageSelectGrid
+          pages={pages.map(p => ({
+            pageNo: p.page_no,
+            image: sourcePages?.pages.find(x => x.page_no === p.source_page_no)?.thumb_url,
+            alt: `原稿第 ${p.source_page_no} 页`,
+            disabled: p.valid === false,
+            emptyText: p.source_page_no ? '原稿缩略图暂不可用' : '文档内容页 · 无可验证的原稿页映射',
+          }))}
+          selected={pages.filter(p => p.keep).map(p => p.page_no)}
+          showRemove={false}
+          onToggle={pageNo => void persistPages(pages.map(p => p.page_no === pageNo ? {...p, keep: !p.keep} : p))}
+          onZoom={pageNo => {
+            const p = pages.find(p => p.page_no === pageNo)
+            const original = sourcePages?.pages.find(x => x.page_no === p?.source_page_no)
+            if (original?.thumb_url) openSourcePreview(sourcePages!.pages.indexOf(original))
+          }}
+          zoomLabel={pageNo => `查看原稿 P${String(pages.find(p => p.page_no === pageNo)?.source_page_no).padStart(2, '0')} 大图`}
+          renderRow={pageNo => {
+            const idx = pages.findIndex(p => p.page_no === pageNo)
+            const p = pages[idx]
+            return <div className="p-3">
+              <div className="flex gap-2 mt-2"><span className="num">{p.source_page_no?`源页 ${p.source_page_no}`:`内容页 ${p.page_no}`}</span><span>{p.valid===false?'不可用':'可用'}</span></div>
+              <label className="block mt-2">标题<input className="input w-full" value={p.title} onChange={e=>{const next=pages.map((x,i)=>i===idx?{...x,title:e.target.value}:x);setPages(next);stageConfig({page_drafts:pagePayload(next)})}} onBlur={()=>void persistPages(pages)}/></label>
+              <label className="block mt-2">布局<select className="input w-full" value={p.layout} onChange={e=>void persistPages(pages.map((x,i)=>i===idx?{...x,layout:e.target.value}:x))}>{layouts.map(l=><option key={l.key} value={l.key}>{l.title}</option>)}</select></label>
+              <p className="text-caption">素材策略：{p.keep?'原稿内容作为参考；重新排版，不能保证原图完整保留':'未应用（此页已排除）'}</p>
+            </div>
+          }}
+        />
+
+        {pagesError && (
+          <div className="mt-3">
+            <ErrorState compact error={pagesError} onRetry={savePages} title="保存页清单失败" />
+          </div>
+        )}
+        <ActionBar>
+          <span className="font-semibold">已选 <span className="num text-primary">{keptPages.length}</span> / <span className="num">{pages.length}</span> 页</span>
           <button className="btn btn-secondary" onClick={() => void persistPages(pages.map(p=>({...p,keep:p.valid !== false})))}>全选有效页</button>
           <button className="btn btn-secondary" onClick={() => void persistPages(pages.map(p=>({...p,keep:false})))}>取消全选</button>
-        </div>
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {pages.map((p,idx)=>{const original=sourcePages?.pages.find(x=>x.page_no===p.source_page_no);return <section key={p.slide_id||p.page_no} className={cn('rounded-lg border border-divider p-3',!p.keep&&'opacity-60')}>
-            {original?<button onClick={()=>openSourcePreview(sourcePages!.pages.indexOf(original))}><img className="aspect-video w-full object-contain" src={original.thumb_url} alt={`原稿第 ${p.source_page_no} 页`}/></button>:<div className="aspect-video bg-surface-alt flex items-center justify-center text-ink-sub">{p.source_page_no?'原稿缩略图暂不可用':'文档内容页 · 无可验证的原稿页映射'}</div>}
-            <div className="flex gap-2 mt-2"><span className="num">{p.source_page_no?`源页 ${p.source_page_no}`:`内容页 ${p.page_no}`}</span><span>{p.valid===false?'不可用':'可用'}</span></div>
-            <label className="flex gap-2 mt-2"><input type="checkbox" checked={p.keep} disabled={p.valid===false} onChange={e=>void persistPages(pages.map((x,i)=>i===idx?{...x,keep:e.target.checked}:x))}/>{p.keep?'已选':'未选'}（排除任务，保留原稿）</label>
-            <label className="block mt-2">标题<input className="input w-full" value={p.title} onChange={e=>{const next=pages.map((x,i)=>i===idx?{...x,title:e.target.value}:x);setPages(next);stageConfig({page_drafts:pagePayload(next)})}} onBlur={()=>void persistPages(pages)}/></label>
-            <label className="block mt-2">布局<select className="input w-full" value={p.layout} onChange={e=>void persistPages(pages.map((x,i)=>i===idx?{...x,layout:e.target.value}:x))}>{layouts.map(l=><option key={l.key} value={l.key}>{l.title}</option>)}</select></label>
-            <p className="text-caption">素材策略：{p.keep?'原稿内容作为参考；重新排版，不能保证原图完整保留':'未应用（此页已排除）'}</p>
-          </section>})}
-        </div>
-        <p className="num">已选 {keptPages.length}/{pages.length} 页</p>
-
-        <div className="mt-4 flex flex-wrap items-center gap-2">
           <button
             type="button"
-            className="btn btn-primary"
+            className="btn btn-primary rounded-full px-6"
             disabled={savingPages || !keptPages.length || !projectId}
             title={
               !projectId
@@ -746,13 +768,7 @@ export function WizardPage() {
             布局清单来自 <span className="num">GET /api/layouts</span>
             {layoutsAsync.error ? '（后端不可用，当前为内置兜底布局）' : ''}
           </span>
-        </div>
-
-        {pagesError && (
-          <div className="mt-3">
-            <ErrorState compact error={pagesError} onRetry={savePages} title="保存页清单失败" />
-          </div>
-        )}
+        </ActionBar>
       </div>
     </div>
   )
@@ -955,7 +971,17 @@ export function WizardPage() {
         <div className="divider my-3" />
         {configConflict&&remoteConfig&&<div className="card"><p>项目配置已由其他窗口修改，本地草稿已保留。</p><details><summary>查看差异</summary><pre className="whitespace-pre-wrap">{JSON.stringify({本地草稿:configDraft.current,服务器:remoteConfig},null,2)}</pre></details><button className="btn btn-secondary" onClick={()=>{projectStamp.current=remoteConfig.updated_at;setConfigConflict(false);setDraftTick(n=>n+1)}}>采用本地草稿（覆盖对应字段）</button><button className="btn btn-secondary" onClick={()=>{configDraft.current={};if(projectId)localStorage.removeItem(configKey(projectId));projectStamp.current=remoteConfig.updated_at;setTitle(remoteConfig.title);setStylePackId(remoteConfig.style_pack_id||null);setProjectSize(remoteConfig.size||'2K');setPages(prev=>prev.map(p=>({...p,...remoteConfig.page_drafts?.find(d=>d.page_no===p.page_no),content_revision:p.slide_id?remoteConfig.content_revisions?.[p.slide_id]??p.content_revision:p.content_revision})));setConfigConflict(false);setSaveState('已保存')}}>采用服务器配置</button></div>}
         {projectId&&<div role="status" className="flex gap-3 items-center mb-3"><span>保存状态：{[saveState,...(step===3?[contentSaveState]:[])].includes('保存失败')?'保存失败':[saveState,...(step===3?[contentSaveState]:[])].includes('正在保存')?'正在保存':[saveState,...(step===3?[contentSaveState]:[])].includes('未保存')?'未保存':'已保存'}</span>{saveState==='保存失败'&&<button className="btn btn-secondary" onClick={()=>void flushConfig()}>重试保存（不生成）</button>}</div>}
-        <Steps current={step} locked={locked} errorAt={errorAt} onJump={(s) => goto(s as WizardStepNo)} />
+        <FlowSteps
+          steps={WIZARD_STEPS}
+          current={step}
+          locks={locked}
+          hints={locked}
+          errorAt={errorAt}
+          busy={taskRunning}
+          onJump={(s) => goto(s as WizardStepNo)}
+          onLocked={(_, reason) => { if (reason) toast.warn(reason) }}
+          label="生成向导步骤"
+        />
       </div>
 
       {locked[step] && <Notice kind="warn">{locked[step]}</Notice>}

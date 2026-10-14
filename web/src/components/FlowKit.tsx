@@ -17,11 +17,14 @@ export interface FlowStep {
 /**
  * 步骤条：可按数据前进/后退；未就绪的步骤显示为虚线灰态，点击时把「缺什么」交给调用方提示。
  */
-export function FlowSteps({ steps, current, locks, busy, onJump, onLocked, label = '步骤' }: {
+export function FlowSteps({ steps, current, locks, hints, errorAt, busy, onJump, onLocked, label = '步骤' }: {
   steps: readonly FlowStep[]
   current: number
   /** 每个步骤缺失的真实前置条件；有值即视为未就绪 */
   locks: Record<number, string | undefined>
+  /** 可选的标签下方提示，内容由调用方提供 */
+  hints?: Record<number, string | undefined>
+  errorAt?: number
   busy?: boolean
   onJump: (step: number) => void
   onLocked?: (step: number, reason: string) => void
@@ -31,19 +34,22 @@ export function FlowSteps({ steps, current, locks, busy, onJump, onLocked, label
     <ol className="deck-stepper" aria-label={label}>
       {steps.map((step, index) => {
         const lock = locks[step.key]
+        const isError = errorAt === step.key
+        const hint = hints?.[step.key]
         return (
           <li key={step.key} aria-current={current === step.key ? 'step' : undefined}>
             {index > 0 && <span className="deck-step-line" aria-hidden="true" />}
             <button
               type="button"
               disabled={busy}
-              aria-disabled={Boolean(lock)}
+              aria-disabled={Boolean(lock) || isError}
+              aria-invalid={isError || undefined}
               title={lock}
-              className={cn('deck-step-button', current === step.key && 'is-current', current > step.key && 'is-complete', lock && 'is-locked')}
-              onClick={() => (lock ? onLocked?.(step.key, lock) : onJump(step.key))}
+              className={cn('deck-step-button', !isError && current === step.key && 'is-current', !isError && current > step.key && 'is-complete', lock && 'is-locked', isError && 'is-error')}
+              onClick={() => (lock || isError ? onLocked?.(step.key, lock ?? hint ?? '') : onJump(step.key))}
             >
-              <span className="num deck-step-number">{current > step.key ? '✓' : step.key}</span>
-              <span>{step.label}</span>
+              <span className="num deck-step-number">{!isError && current > step.key ? '✓' : step.key}</span>
+              <span>{step.label}{hint && <small className="deck-step-hint text-caption">{hint}</small>}</span>
             </button>
           </li>
         )
@@ -54,15 +60,18 @@ export function FlowSteps({ steps, current, locks, busy, onJump, onLocked, label
 
 export interface SelectablePage {
   pageNo: number
-  image: string
+  image?: string
+  disabled?: boolean
+  emptyText?: string
   /** 图片 alt 文案；不传则用「第 N 页」 */
   alt?: string
 }
 
 /** 页面选择网格：附加行与放大行为由调用方提供。 */
-export function PageSelectGrid({ pages, selected, disabled, onToggle, onZoom, zoomLabel, renderRow }: {
+export function PageSelectGrid({ pages, selected, disabled, onToggle, onZoom, zoomLabel, renderRow, showRemove = true }: {
   pages: SelectablePage[]
   selected: number[]
+  showRemove?: boolean
   disabled?: boolean
   onToggle: (pageNo: number) => void
   /** 传了才显示放大按钮（点了由调用方打开灯箱） */
@@ -78,13 +87,15 @@ export function PageSelectGrid({ pages, selected, disabled, onToggle, onZoom, zo
         const toggle = () => onToggle(page.pageNo)
         return <article key={page.pageNo} className={cn('deck-page-card', !checked && 'is-excluded')}>
           <div className="deck-page-preview">
-            <button type="button" disabled={disabled} aria-pressed={checked} aria-label={`第 ${page.pageNo} 页${checked ? '取消选择' : '选择'}`} onClick={toggle} className="deck-page-select">
-              <img src={page.image} alt={page.alt ?? `第 ${page.pageNo} 页`} loading="lazy" />
+            <button type="button" disabled={disabled || page.disabled} aria-disabled={page.disabled || undefined} aria-pressed={checked} aria-label={`第 ${page.pageNo} 页${checked ? '取消选择' : '选择'}`} onClick={toggle} className="deck-page-select">
+              {page.image
+                ? <img src={page.image} alt={page.alt ?? `第 ${page.pageNo} 页`} loading="lazy" />
+                : <span className="absolute inset-0 flex items-center justify-center text-caption text-ink-sub">{page.emptyText ?? page.alt ?? `第 ${page.pageNo} 页`}</span>}
               <span className="num deck-page-number">{page.pageNo}</span>
               <span className={cn('deck-page-check', checked && 'is-checked')}>{checked ? '✓' : ''}</span>
             </button>
-            <button type="button" aria-label={`移除第 ${page.pageNo} 页选择`} disabled={disabled || !checked} onClick={toggle} className="deck-page-remove">×</button>
-            {onZoom && <button type="button" aria-label={zoomLabel?.(page.pageNo) ?? `放大第 ${page.pageNo} 页`} disabled={disabled} onClick={() => onZoom(page.pageNo)} className="deck-page-zoom">⤢</button>}
+            {showRemove && <button type="button" aria-label={`移除第 ${page.pageNo} 页选择`} disabled={disabled || page.disabled || !checked} aria-disabled={page.disabled || undefined} onClick={toggle} className="deck-page-remove">×</button>}
+            {onZoom && page.image && <button type="button" aria-label={zoomLabel?.(page.pageNo) ?? `放大第 ${page.pageNo} 页`} disabled={disabled} onClick={() => onZoom(page.pageNo)} className="deck-page-zoom">⤢</button>}
           </div>
           {renderRow?.(page.pageNo, checked)}
         </article>

@@ -55,6 +55,9 @@
 .deck-step-button.is-complete .deck-step-number { background: var(--color-surface-alt); }
 .deck-step-button.is-locked { color: var(--color-ink-muted); cursor: not-allowed; }
 .deck-step-button.is-locked .deck-step-number { border-style: dashed; opacity: .7; }
+.deck-step-button.is-error { color: var(--color-danger-ink); cursor: not-allowed; }
+.deck-step-button.is-error .deck-step-number { color: var(--color-danger-ink); border-color: var(--color-danger-ink); background: var(--color-danger-bg); }
+.deck-step-hint { display: block; font-size: var(--text-caption); font-weight: 400; text-align: left; white-space: nowrap; }
 .deck-page-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
 .deck-page-card { min-width: 0; padding: 8px; border: 1px solid var(--color-border); border-radius: 18px; background: var(--color-surface); box-shadow: 0 2px 5px rgba(16, 40, 90, .03); }
 .deck-page-card.is-excluded .deck-page-preview img { opacity: .45; }
