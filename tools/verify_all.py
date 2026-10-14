@@ -87,6 +87,8 @@ def main() -> int:
         print("⚠️ 未找到 .venv：先执行一次 `bash server/start-lan.sh`（会自动建虚拟环境并安装 Python 依赖），再跑自检。")
     if not os.path.exists(os.path.join(ROOT, "server/pptx/node_modules/pptxgenjs")):
         print("⚠️ 未找到 server/pptx/node_modules（PptxGenJS）：原生可编辑导出相关用例会失败。先执行一次 `bash server/start-lan.sh` 自动安装，再跑自检。")
+    if not os.path.isdir(os.path.join(ROOT, "web/node_modules")):
+        print("⚠️ 未找到 web/node_modules：前端构建这一步会被跳过/失败。先执行 `cd web && npm install`，再跑自检。")
 
     rows = []
     for name, desc in TOOLS:

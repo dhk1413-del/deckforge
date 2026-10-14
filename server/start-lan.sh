@@ -19,6 +19,12 @@ LOG_DIR="$ROOT/data/logs"
 PID_FILE="$LOG_DIR/deckforge.pid"
 mkdir -p "$LOG_DIR"
 
+# 首次启动要装依赖（Python + PptxGenJS），装完前健康检查必然不通——
+# 这时不能只等 20 秒就报「启动失败」，否则第一次用的人会以为装挂了。
+FIRST_RUN=0
+[ -x "$ROOT/.venv/bin/python" ] || FIRST_RUN=1
+[ -d "$ROOT/server/pptx/node_modules/pptxgenjs" ] || FIRST_RUN=1
+
 if curl -s -m 3 --noproxy '*' "http://127.0.0.1:${PORT}/api/health" >/dev/null 2>&1; then
   echo "== 服务已在运行：http://127.0.0.1:${PORT} =="
 else
@@ -33,6 +39,10 @@ else
     exit 1
   fi
   echo "== 启动 DeckForge（HOST=${HOST} PORT=${PORT}）=="
+  if [ "$FIRST_RUN" = "1" ]; then
+    echo "== 首次启动：正在安装依赖（Python 包 + PptxGenJS 渲染器）=="
+    echo "   首次通常要几分钟，取决于网络；期间不要中断，装完会自动就绪。"
+  fi
   DECKFORGE_ROOT="$ROOT" DECKFORGE_HOST="$HOST" DECKFORGE_PORT="$PORT" DECKFORGE_LOG="$LOG_DIR/server.log" \
     python3 - <<'PY'
 import os
@@ -50,9 +60,20 @@ proc = subprocess.Popen(
 with open(os.path.join(os.path.dirname(os.environ["DECKFORGE_LOG"]), "deckforge.pid"), "w") as f:
     f.write(str(proc.pid) + "\n")
 PY
-  for _ in $(seq 1 40); do
+  # 首次启动给足安装时间（最多 10 分钟）；已装过依赖则维持原来的 20 秒快速判定。
+  if [ "$FIRST_RUN" = "1" ]; then CHECKS=200; STEP=3; else CHECKS=40; STEP=0.5; fi
+  PID="$(cat "$PID_FILE" 2>/dev/null || echo '')"
+  for i in $(seq 1 "$CHECKS"); do
     curl -s -m 2 --noproxy '*' "http://127.0.0.1:${PORT}/api/health" >/dev/null 2>&1 && break
-    sleep 0.5
+    if [ -n "$PID" ] && ! kill -0 "$PID" 2>/dev/null; then
+      echo "!! 启动进程已退出（pid ${PID}），最后 20 行日志："
+      tail -20 "$LOG_DIR/server.log" || true
+      exit 1
+    fi
+    if [ "$FIRST_RUN" = "1" ] && [ $((i % 10)) -eq 0 ]; then
+      echo "   …仍在安装/启动（已等 $((i * STEP)) 秒）"
+    fi
+    sleep "$STEP"
   done
 fi
 
@@ -65,7 +86,10 @@ if curl -s -m 3 --noproxy '*' "http://127.0.0.1:${PORT}/api/health" >/dev/null 2
   done
   exit 0
 else
-  echo "!! 启动失败，最后 20 行日志："
+  echo "!! 启动未就绪，最后 20 行日志："
+  if [ "$FIRST_RUN" = "1" ]; then
+    echo "   首次安装可能还没跑完（装依赖需要几分钟）。确认安装结束后，重新执行一次 bash server/start-lan.sh 即可。"
+  fi
   tail -20 "$LOG_DIR/server.log" || true
   exit 1
 fi

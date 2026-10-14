@@ -81,6 +81,9 @@ cd deckforge
 cd web &amp;&amp; npm install &amp;&amp; npm run build &amp;&amp; cd ..
 bash server/start-lan.sh          # 默认 127.0.0.1:8641</code></pre>
 <p>后端依赖不用手动装。第一次执行启动脚本时，脚本会创建 <code>.venv</code>、安装 <code>server/requirements.txt</code>、安装 <code>server/pptx</code> 的 Node 依赖。</p>
+<p><strong>首次启动要等一会儿</strong>（取决于网络，通常几分钟）：脚本会提示「首次启动：正在安装依赖」并每 30 秒报一次进度，装完自动就绪。</p>
+<p>如果它报「启动未就绪」，多半是依赖还没装完——等安装跑完后重新执行一次 <code>bash server/start-lan.sh</code> 即可。</p>
+<p>前端那一步（<code>cd web && npm install && npm run build</code>）需要自己先执行，否则页面打不开。</p>
 <h3>1.4 启动、停止、重启</h3>
 <pre><code>bash server/start-lan.sh                              # 启动，默认 127.0.0.1:8641
 bash server/stop-daemon.sh                            # 停止
