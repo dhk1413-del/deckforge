@@ -91,7 +91,6 @@ export function BeautifyPanel({ packs, loadingPacks, onStepChange, resumeProject
   const [result, setResult] = useState<BeautifyStatus | null>(null)
   const [engine, setEngine] = useState<CodexEngineStatus | null>(null)
   const [engineError, setEngineError] = useState<string | null>(null)
-  const [elapsedMs, setElapsedMs] = useState(0)
   const [cancelling, setCancelling] = useState(false)
   useEffect(() => {
     onStepChange(step)
@@ -157,10 +156,6 @@ export function BeautifyPanel({ packs, loadingPacks, onStepChange, resumeProject
     })().catch(e => { if (active) { setError(errorDetail(e)); setBusy(false) } })
     return () => { active = false }
   }, [resumeProjectId])
-  useEffect(() => {
-    if (stream.startedAt && stream.finishedAt)
-      setElapsedMs((previous) => previous + stream.finishedAt! - stream.startedAt!)
-  }, [stream.startedAt, stream.finishedAt])
   /* 运行期间每秒走一格，用于显示真实已用时（不再显示恒为 0 的假数据） */
   const [nowTick, setNowTick] = useState(() => Date.now())
   useEffect(() => {
@@ -576,39 +571,13 @@ export function BeautifyPanel({ packs, loadingPacks, onStepChange, resumeProject
               <span>结果来源：{resultCurrent.beauty_ok ? '生图模型' : resultCurrent.beauty_url ? '生图失败，已用原图' : '尚未生成'}</span>
               <span>文字真源：{resultCurrent.text_source === 'none' ? '无（后端会降级为图生图）' : resultCurrent.text_source.toUpperCase()}</span>
             </div>
-            {resultCurrent.beauty_ok === false && resultCurrent.beauty_url && <p className="m-0 text-body-sm text-ink-sub" role="alert">该页生图失败，当前显示的是原图副本；原因见下方「生成详情」的警告明细。</p>}
+            {resultCurrent.beauty_ok === false && resultCurrent.beauty_url && <p className="m-0 text-body-sm text-ink-sub" role="alert">该页生图失败，当前显示的是原图副本；可点上方「重新生成本页」再试，成本会计入账本。</p>}
             {showOrigin && (resultCurrent.origin_url
               ? <img src={resultCurrent.origin_url} alt={`原稿第 ${resultCurrent.page_no} 页`} className="deck-slide-origin" loading="lazy" />
               : <p className="m-0 text-caption text-ink-muted">后端未提供该页原稿图。</p>)}
           </>}
         </section>
       </div>}
-      {step === 5 && result && <details className="deck-details">
-        <summary>生成详情（成本 / 供应商 / 警告 / Codex）</summary>
-        <div className="panel-alt flex flex-wrap gap-4">
-          <span>总页数：<span className="num">{result.page_count}</span></span>
-          <span>生图张数：<span className="num">{result.cost.image_calls}</span> 张</span>
-          <span>总成本：<span className="num">{result.cost.total_cny}</span> 元</span>
-          <span>Codex 重建耗时：{result.codex.seconds === undefined ? '未提供' : <><span className="num">{result.codex.seconds}</span> 秒</>}</span>
-          <span>耗时（本次会话作业计时）：<span className="num">{(elapsedMs / 1000).toFixed(1)}</span> 秒</span>
-        </div>
-        {result.cost.price_configured === false && <div className="error-box text-body-sm" role="alert">{result.cost.note}</div>}
-        {result.cost.by_provider.length > 0 && <div className="panel-alt overflow-x-auto">
-          <table className="w-full text-left text-body-sm">
-            <thead><tr><th>供应商</th><th>生图张数</th><th>金额（元）</th></tr></thead>
-            <tbody>{result.cost.by_provider.map((item) => <tr key={item.provider}>
-              <td>{item.provider}</td><td className="num">{item.count}</td><td className="num">{item.cny}</td>
-            </tr>)}</tbody>
-          </table>
-        </div>}
-        <div className="panel-alt text-body-sm">
-          <p className="mt-0">警告明细</p>
-          {result.warnings.length ? <ul className="mb-0">{result.warnings.map((warning, index) => <li key={index}>{warning}</li>)}</ul> : <span>后端未报告警告</span>}
-          {result.codex.message && <p className="mb-0">Codex：{result.codex.message}</p>}
-          {!result.exports.image && <p className="mb-0 text-ink-sub">图片版未产出：{error || result.warnings.join('；') || '后端未提供导出文件或具体原因。'}</p>}
-          {!result.exports.editable && <p className="mb-0 text-ink-sub">可编辑版未产出：{result.codex.message || error || result.warnings.join('；') || (result.codex.ok ? '后端报告 Codex 成功，但未提供导出文件或具体原因。' : '后端未报告 Codex 重建成功，未提供具体原因。')}</p>}
-        </div>
-      </details>}
       {step === 2 && origin && <ActionBar>
         <span className="font-semibold">已选 <span className="num text-primary">{selected.length}</span> / <span className="num">{origin.page_count}</span> 页</span>
         <button type="button" className="btn btn-secondary rounded-full" disabled={busy} onClick={() => { setSelected(selected.length === origin.page_count ? [] : origin.pages.map(page => page.page_no)); setContentSaved(false) }}>{selected.length === origin.page_count ? '取消全选' : '全选'}</button>
