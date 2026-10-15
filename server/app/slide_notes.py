@@ -15,6 +15,7 @@
 import asyncio
 import base64
 import os
+from pathlib import Path
 import re
 import shutil
 import subprocess
@@ -86,6 +87,11 @@ def find_soffice() -> str:
     for p in SOFFICE_CANDIDATES:
         if os.path.exists(p):
             return p
+    for variable, default in (("ProgramFiles", "C:\\Program Files"),
+                              ("ProgramFiles(x86)", "C:\\Program Files (x86)")):
+        path = os.path.join(os.environ.get(variable, default), "LibreOffice", "program", "soffice.exe")
+        if os.path.isfile(path):
+            return path
     found = shutil.which("soffice")
     if found:
         return found
@@ -107,7 +113,7 @@ def render_deck(pptx_path: str, out_dir: str, expect_pages: int, width: int = RE
     os.makedirs(out_dir, exist_ok=True)
     try:
         cmd = [soffice, "--headless", "--norestore", "--nologo", "--nolockcheck",
-               "-env:UserInstallation=file://%s" % profile,
+               "-env:UserInstallation=%s" % Path(profile).resolve().as_uri(),
                "--convert-to", "pdf", "--outdir", tmp, pptx_path]
         try:
             proc = subprocess.run(cmd, capture_output=True, text=True, timeout=RENDER_TIMEOUT)

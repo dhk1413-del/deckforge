@@ -8,6 +8,7 @@
 import asyncio
 import json
 import os
+from pathlib import Path
 import shutil
 import subprocess
 import tempfile
@@ -95,6 +96,11 @@ def find_soffice() -> str:
     for path in SOFFICE_CANDIDATES:
         if os.path.exists(path):
             return path
+    for variable, default in (("ProgramFiles", "C:\\Program Files"),
+                              ("ProgramFiles(x86)", "C:\\Program Files (x86)")):
+        path = os.path.join(os.environ.get(variable, default), "LibreOffice", "program", "soffice.exe")
+        if os.path.isfile(path):
+            return path
     found = shutil.which("soffice")
     if found:
         return found
@@ -107,7 +113,7 @@ def _pdf_from_pptx(pptx_path: str) -> tuple:
     tmp = tempfile.mkdtemp(prefix="deckforge_source_pages_")
     profile = tempfile.mkdtemp(prefix="deckforge_lo_profile_")
     cmd = [soffice, "--headless", "--norestore", "--nologo", "--nolockcheck",
-           "-env:UserInstallation=file://%s" % profile,
+           "-env:UserInstallation=%s" % Path(profile).resolve().as_uri(),
            "--convert-to", "pdf", "--outdir", tmp, pptx_path]
     try:
         proc = subprocess.run(cmd, capture_output=True, text=True, timeout=RENDER_TIMEOUT)

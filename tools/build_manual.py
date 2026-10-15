@@ -158,7 +158,7 @@ def build():
             path = SOURCE.parent / relative
             with Image.open(path) as im:
                 w, h = im.size
-            max_height = 1.65 if page == 6 else 3.5 if page in (7, 8, 9) else 2.05 if page == 4 else 2.35 if 'screenshots/' in relative else 2.55
+            max_height = 1.65 if page in (6, 10) else 3.5 if page in (7, 8, 9) else 2.05 if page == 4 else 2.35 if 'screenshots/' in relative else 2.55
             width = min(7.1, max_height * w / h)
             p = doc.add_paragraph(); p.alignment = WD_ALIGN_PARAGRAPH.CENTER
             p.paragraph_format.keep_with_next = True

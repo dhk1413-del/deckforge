@@ -9,11 +9,13 @@
 
 ## 安装
 
-支持 macOS；Windows 使用 WSL2 Ubuntu。三种方式任选一种：
+支持 macOS 和 Windows 原生安装。三种方式任选一种：
 
 1. **DeepSeek Harness 帮装**：从 [DeepSeek 官方页面](https://www.deepseek.com/zh/harness/) 获取工具，在新会话里粘贴 [安装要求](docs/使用说明.md#1-用-ai-助手帮你安装)。
 2. **WorkBuddy 帮装**：从 [腾讯官方下载页](https://www.codebuddy.cn/downloads/) 获取 WorkBuddy，使用同一段安装要求，让它完成下载、安装和启动。
-3. **手动安装**：先准备 Python（推荐 3.12）、Node.js 22 系列最新版（至少 22.12）、Git；处理 PPTX 还需 LibreOffice。Windows 先准备 WSL2，详细步骤见 [手动安装](docs/使用说明.md#2-手动安装)。
+3. **手动安装**：先准备 Python（推荐 3.12）、Node.js 22 系列最新版（至少 22.12）、Git；处理 PPTX 还需 LibreOffice。Windows 使用 PowerShell，详细步骤见 [手动安装](docs/使用说明.md#2-手动安装)。
+
+macOS：
 
 ```bash
 git clone https://github.com/dhk1413-del/deckforge.git
@@ -23,7 +25,9 @@ npm --prefix web run build
 bash server/start-lan.sh
 ```
 
-首次启动会自动安装其余依赖；出现“已就绪”后打开 **http://127.0.0.1:8641**。
+macOS 首次启动会自动安装其余依赖。Windows 按使用说明中的 PowerShell 命令安装依赖、构建前端并启动，无需 Ubuntu 或 WSL。
+
+启动后打开 **http://127.0.0.1:8641**。Windows 运行时保持 PowerShell 窗口打开，按 Ctrl+C 停止。
 
 [图文使用说明](docs/使用说明.md) · [PDF](docs/使用说明.pdf) · [Word](docs/使用说明.docx) · [HTML 阅读版](docs/使用说明.html)
 

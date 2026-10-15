@@ -26,6 +26,9 @@ FONT_CANDIDATES = [
 
 def _font_candidates():
     yield from FONT_CANDIDATES
+    windows_fonts = os.path.join(os.environ.get("WINDIR", "C:\\Windows"), "Fonts")
+    for name in ("msyh.ttc", "msyhbd.ttc", "simsun.ttc", "simhei.ttf"):
+        yield os.path.join(windows_fonts, name)
     for command in (
         ["fc-match", "-f", "%{file}\t%{lang}\n", "sans-serif:lang=zh-cn"],
         ["fc-list", ":lang=zh", "-f", "%{file}\n"],
