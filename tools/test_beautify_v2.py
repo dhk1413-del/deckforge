@@ -526,9 +526,10 @@ def main():
 
         async def planned_pages():
             calls = []
-            def record_page(pid, no, tokens, mode, size, text):
-                calls.append((no, mode, text['texts']))
-                return original_beautify(pid, no, tokens, mode, size, text)
+            def record_page(pid, no, tokens, mode, size, text, **kwargs):
+                # 勾了「保留原图」的页要带 keep_material=True（生图后按坐标把原图像素贴回）
+                calls.append((no, mode, text['texts'], kwargs.get('keep_material')))
+                return original_beautify(pid, no, tokens, mode, size, text, **kwargs)
             with patch.object(beautify, 'beautify_page', side_effect=record_page):
                 jid = await pipeline.run_beautify('content-check', 'style', mode='redesign', page_nos=[2, 4])
                 for _ in range(20000):
@@ -536,7 +537,8 @@ def main():
                         break
                     await asyncio.sleep(0)
                 assert pipeline.JOBS[jid]['status'] == 'done'
-            assert calls == [(2, 'img2img', ['User confirmed title', '42% from user']), (4, 'redesign', ['Original page 4'])]
+            assert calls == [(2, 'img2img', ['User confirmed title', '42% from user'], True),
+                             (4, 'redesign', ['Original page 4'], False)], calls
             saved['pages'][0]['points'] = ['Updated confirmed point']
             beautify.save_content('content-check', str(pdf), saved)
             try:
@@ -559,7 +561,45 @@ def main():
         print('PASS 取消端点：不存在 404、所有终态 400、运行中 cancelling、SSE 终态回放')
         print('PASS redesign 编排/端点：mode 持久化与透传、非法值 400、零成本记账、全量双导出')
         print('PASS 编排补充：预览不调用 Codex/不产可编辑版，full 重建全部页，预览页不重跑，记账页数不变')
-    print('通过 19 项，失败 0 项')
+        # —— 勾「保留原图」的页面：原 PPT 里的图片必须原样保留（坐标级，不依赖模型自觉）——
+        picdir = Path(tmp) / 'pics'
+        picdir.mkdir()
+        block_png = picdir / 'block.png'
+        Image.new('RGB', (400, 300), (200, 30, 30)).save(block_png)
+        box_pptx = picdir / 'with-picture.pptx'
+        prs2 = Presentation()
+        prs2.slide_width, prs2.slide_height = Inches(13.333), Inches(7.5)
+        slide2 = prs2.slides.add_slide(prs2.slide_layouts[6])
+        slide2.shapes.add_textbox(Inches(1), Inches(1), Inches(4), Inches(1)).text = '标题不能被替换'
+        slide2.shapes.add_picture(str(block_png), Inches(8), Inches(3.75), width=Inches(4), height=Inches(3))
+        prs2.save(box_pptx)
+
+        boxes = beautify.page_picture_boxes(str(box_pptx), 1)
+        assert len(boxes) == 1, boxes
+        x, y, w, h = boxes[0]
+        assert abs(x - 8 / 13.333) < 0.01 and abs(y - 3.75 / 7.5) < 0.01, boxes
+        assert abs(w - 4 / 13.333) < 0.01 and abs(h - 3 / 7.5) < 0.01, boxes
+        assert beautify.page_picture_boxes(str(pdf), 1) == []          # PDF 源：整页位图，无页内图片元素
+
+        origin_png = picdir / 'origin.png'
+        generated_png = picdir / 'generated.png'
+        Image.new('RGB', (1600, 900), (10, 20, 30)).save(origin_png)
+        Image.new('RGB', (1600, 900), (250, 250, 250)).save(generated_png)
+        assert beautify.preserve_pictures(origin_png, generated_png, []) == 0
+        kept = beautify.preserve_pictures(origin_png, generated_png, boxes)
+        assert kept == 1, kept
+        with Image.open(generated_png) as out_img, Image.open(origin_png) as src_img:
+            out_rgb, src_rgb = out_img.convert('RGB'), src_img.convert('RGB')
+            inside = (int((x + w / 2) * 1600), int((y + h / 2) * 900))
+            assert out_rgb.getpixel(inside) == src_rgb.getpixel(inside), '矩形内必须原样保留原图像素'
+            assert out_rgb.getpixel((20, 20)) == (250, 250, 250), '矩形外不应被改动'
+
+        cached = beautify.picture_boxes_cached('pic-cache', str(box_pptx), 1)
+        assert cached == boxes
+        assert (Path(tmp) / 'pic-cache' / 'beautify' / 'pictures.json').is_file(), '应写入按源指纹的缓存'
+        print('PASS 保留原图：pptx/pdf 图片框坐标解析、矩形内逐像素贴回、矩形外不受影响、缓存落盘')
+
+    print('通过 20 项，失败 0 项')
 
 
 if __name__ == '__main__':

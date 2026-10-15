@@ -11,6 +11,7 @@ import threading
 
 from PIL import Image
 from pptx import Presentation
+from pptx.enum.shapes import MSO_SHAPE_TYPE
 
 from . import codex_engine, config, db, providers, source_pages
 
@@ -142,6 +143,129 @@ def page_text_source(src_path, page_no):
     return dict(title=texts[0] if texts else '', points=texts[1:], texts=texts, source=source)
 
 
+def page_picture_boxes(src_path, page_no):
+    """该页「图片元素」的归一化坐标 [x, y, w, h]（0~1，左上角为原点）。
+
+    用途：勾了「保留原图」的页面，生图后把这些区域的**原图像素原样贴回**，
+    保证「PPT 里的图片不删、不换、不被重绘」——这是坐标级保证，不依赖模型自觉。
+
+    - pptx：python-pptx 直接给形状坐标（EMU），除以幻灯片尺寸；含组合形状内的图片
+    - pdf ：PyMuPDF 的 get_image_info()，除以页面 rect
+    - 其它（jpg/png 源）：整页本身就是一张位图，没有"页内图片元素"，返回空列表
+    """
+    if page_no < 1:
+        raise ValueError('页码必须从 1 开始')
+    ext = Path(src_path).suffix.lower()
+    boxes = []
+    if ext == '.pptx':
+        deck = Presentation(src_path)
+        slide_w = deck.slide_width or 1
+        slide_h = deck.slide_height or 1
+        slide = deck.slides[page_no - 1]
+
+        def visit(shapes):
+            for shape in shapes:
+                if shape.shape_type == MSO_SHAPE_TYPE.GROUP:
+                    visit(shape.shapes)
+                    continue
+                if shape.shape_type != MSO_SHAPE_TYPE.PICTURE:
+                    continue
+                left, top = shape.left, shape.top
+                width, height = shape.width, shape.height
+                if None in (left, top, width, height) or width <= 0 or height <= 0:
+                    continue
+                x0 = max(0.0, left / slide_w)
+                y0 = max(0.0, top / slide_h)
+                x1 = min(1.0, (left + width) / slide_w)
+                y1 = min(1.0, (top + height) / slide_h)
+                if x1 - x0 <= 0.001 or y1 - y0 <= 0.001:
+                    continue
+                boxes.append([round(x0, 4), round(y0, 4), round(x1 - x0, 4), round(y1 - y0, 4)])
+
+        visit(slide.shapes)
+    elif ext == '.pdf':
+        import fitz
+        with fitz.open(src_path) as doc:
+            page = doc[page_no - 1]
+            rect = page.rect
+            page_w = rect.width or 1
+            page_h = rect.height or 1
+            for info in page.get_image_info():
+                rect_x0, rect_y0, rect_x1, rect_y1 = info.get('bbox') or (0, 0, 0, 0)
+                x0 = max(0.0, (rect_x0 - rect.x0) / page_w)
+                y0 = max(0.0, (rect_y0 - rect.y0) / page_h)
+                x1 = min(1.0, (rect_x1 - rect.x0) / page_w)
+                y1 = min(1.0, (rect_y1 - rect.y0) / page_h)
+                if x1 - x0 <= 0.001 or y1 - y0 <= 0.001:
+                    continue
+                boxes.append([round(x0, 4), round(y0, 4), round(x1 - x0, 4), round(y1 - y0, 4)])
+    return boxes
+
+
+def picture_boxes_cached(pid, src_path, page_no):
+    """按源文件指纹缓存每页的图片框，避免逐页重复解析 pptx/pdf。"""
+    if not src_path or not os.path.isfile(src_path):
+        return []
+    root = directory(pid)
+    cache_path = root / 'pictures.json'
+    fingerprint = source_revision(src_path)
+    data = {}
+    if cache_path.is_file():
+        try:
+            data = json.loads(cache_path.read_text(encoding='utf-8'))
+        except (OSError, ValueError):
+            data = {}
+    if data.get('source') != fingerprint:
+        data = dict(source=fingerprint, pages={})
+    pages = data.setdefault('pages', {})
+    key = str(page_no)
+    if key not in pages:
+        try:
+            pages[key] = page_picture_boxes(src_path, page_no)
+        except Exception:                     # noqa: BLE001 —— 解析失败不该拖垮生图
+            pages[key] = []
+        root.mkdir(parents=True, exist_ok=True)
+        tmp = cache_path.with_name(cache_path.name + '.pending')
+        tmp.write_text(json.dumps(data, ensure_ascii=False), encoding='utf-8')
+        os.replace(tmp, cache_path)
+    return pages[key]
+
+
+def source_path_of(pid) -> str:
+    row = db.q1('SELECT source_path FROM projects WHERE id=?', (pid,))
+    return (row or {}).get('source_path') or ''
+
+
+def preserve_pictures(origin_path, target_path, boxes, pad=0.002):
+    """把原图这些区域的像素**原样**贴回生成结果，返回实际处理的图片数。
+
+    注意：只覆盖这些矩形，矩形之外的生成结果（配色/装饰/文字排版）保持模型产出。
+    """
+    if not boxes:
+        return 0
+    with Image.open(origin_path) as origin_file:
+        origin = origin_file.convert('RGB')
+    with Image.open(target_path) as target_file:
+        generated = target_file.convert('RGB')
+    if origin.size != generated.size:
+        origin = origin.resize(generated.size, Image.LANCZOS)   # 同长宽比，尺寸不同时对齐
+    width, height = generated.size
+    applied = 0
+    for box in boxes:
+        x, y, w, h = box
+        left = max(0, int((x - pad) * width))
+        top = max(0, int((y - pad) * height))
+        right = min(width, int(round((x + w + pad) * width)))
+        bottom = min(height, int(round((y + h + pad) * height)))
+        if right - left < 1 or bottom - top < 1:
+            continue
+        generated.paste(origin.crop((left, top, right, bottom)), (left, top))
+        applied += 1
+    if applied:
+        generated.save(target_path, format='PNG')
+    return applied
+
+
 def source_revision(src_path):
     return hashlib.sha256(json.dumps(fingerprint(src_path), sort_keys=True).encode()).hexdigest()
 
@@ -215,7 +339,8 @@ def beautify_prompt(tokens):
             + json.dumps(tokens, ensure_ascii=False))
 
 
-def beautify_page(pid, page_no, tokens, mode='img2img', size='2K', text=None):
+def beautify_page(pid, page_no, tokens, mode='img2img', size='2K', text=None,
+                  keep_material=False, source_path=''):
     if mode not in ('img2img', 'redesign'):
         raise ValueError('mode 只能是 img2img 或 redesign')
     root = directory(pid)
@@ -249,9 +374,17 @@ def beautify_page(pid, page_no, tokens, mode='img2img', size='2K', text=None):
                                             texts=text.get('texts', [])), ensure_ascii=False)
                           + '。风格令牌：' + json.dumps(tokens, ensure_ascii=False))
             result = providers.edit_image(src.read_bytes(), prompt, size)
+        if keep_material:
+            # 双保险：提示词要求 + 生成后按坐标把原图像素贴回（后者才是有保证的那层）
+            prompt += ('；照片、插画、图表截图、图标等图片元素必须原样保留：不得重绘、替换、删除、裁剪或改变色调')
         if result.get('ok'):
             with Image.open(io.BytesIO(result['image_bytes'])) as image:
                 image.save(target, format='PNG')
+            if keep_material:
+                boxes = picture_boxes_cached(pid, source_path or source_path_of(pid), page_no)
+                kept = preserve_pictures(src, target, boxes)
+                if kept:
+                    result['preserved_pictures'] = kept
         else:
             raise ValueError(result.get('message') or '生图失败')
     except Exception as exc:

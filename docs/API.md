@@ -1,4 +1,4 @@
-# DeckForge MVP — API 契约（前后端共同遵守）
+# SlideCraft MVP — API 契约（前后端共同遵守）
 
 > 后端：FastAPI `http://127.0.0.1:8640`，所有接口前缀 `/api`。前端 dev 时用 Vite proxy 把 `/api` 转发到 8640。
 > 时间字段一律 ISO8601 字符串；金额单位「元」，保留 4 位小数；页号从 1 开始。
@@ -118,7 +118,7 @@
 | POST | `/api/projects/{pid}/beautify/preview` | `{style_pack_id, mode:"img2img|redesign", preview_pages:3, page_nos:[1,2,4], size:"2K"}`；预览页数 1–3。返回 `{job_id, progress_url, page_count, message}` |
 | POST | `/api/projects/{pid}/beautify/continue` | `{style_pack_id, mode:"img2img|redesign", page_nos:[1,2,4], size:"2K"}`；必须已有完成图片版的 preview，原稿、风格、模式一致。返回 `{job_id, progress_url, remaining_pages}` |
 | POST | `/api/projects/{pid}/beautify/pages/{page_no}/regenerate` | **单页重生成（非破坏性）**：body `{style_pack_id?, mode?, size?}`（缺省沿用现场记录的风格与模式）→ `{job_id, progress_url, page_no, message}`，SSE 复用 `/api/jobs/{job_id}/stream`。只重写该页的 `beauty/pNN.png` 与 `text/pNN.json`，**其它页文件不重写、导出记录不被清空**；完成后按现有结果重新装配 `image.pptx` 并替换 `beautify_image` 导出记录，账本按该页号记一条 `action="beautify"`。前置条件：已有美化现场（phase 非空）、原稿指纹一致、该页在本次所选页面内、该项目没有别的美化作业在跑；不满足分别返回 400（如「请先生成美化预览，再重生成单页」「原稿已变更，请重新生成预览」「该页不在本次所选页面内」「该项目还有美化作业在跑，请等它结束」）。生成期间可 `POST /api/jobs/{job_id}/cancel` 取消，取消时**不发布**本次结果、不改 state |
-| GET | `/api/projects/{pid}/beautify` | `{phase, mode, page_count, page_nos, rendered, confirmed, content_saved, updated_at, pages:[{page_no,origin_url,beauty_url,beauty_ok,text_source}], codex, exports:{editable?,image?}, cost:{total_cny,image_calls,failed_calls,price_configured,by_provider:[{provider,cny,count,failed}],note}, warnings}`；尚未运行时 phase 为空。`content_saved` 表示内容梳理是否**已保存并确认**（磁盘上存在与当前原稿匹配的 `content.json`）——恢复项目时用它判断第③步是否已完成；`confirmed` 仍只表示「已确认预览、正在做全量」。`updated_at` 是美化现场最后更新时间，前端据此给结果图加 `?v=` 版本参数，避免单页重生成后看到旧缓存 |
+| GET | `/api/projects/{pid}/beautify` | `{phase, mode, page_count, page_nos, rendered, confirmed, content_saved, updated_at, pages:[{page_no,origin_url,beauty_url,beauty_ok,text_source,keep_material,preserved_pictures}], codex, exports:{editable?,image?}, cost:{total_cny,image_calls,failed_calls,price_configured,by_provider:[{provider,cny,count,failed}],note}, warnings}`；尚未运行时 phase 为空。`content_saved` 表示内容梳理是否**已保存并确认**（磁盘上存在与当前原稿匹配的 `content.json`）——恢复项目时用它判断第③步是否已完成；`confirmed` 仍只表示「已确认预览、正在做全量」。`keep_material` 表示该页勾选了「保留原图」：**勾了它的页在生图后会把原页里的图片元素按坐标原样贴回**（`preserved_pictures` 是实际贴回的图片张数），坐标来自源文件解析（pptx 读形状坐标、pdf 用 PyMuPDF），所以「原 PPT 里的图片不删、不换、不被重绘」是坐标级保证，不依赖模型自觉。`updated_at` 是美化现场最后更新时间，前端据此给结果图加 `?v=` 版本参数，避免单页重生成后看到旧缓存 |
 | GET | `/api/projects/{pid}/export?kind=beautify_editable` | 直接下载 PPTX（仅 full.pptx，预览阶段不提供可编辑版）；不存在返回 400 |
 | GET | `/api/projects/{pid}/export?kind=beautify_image` | 直接下载 image.pptx；不存在返回 400 |
 | GET | `/api/codex-engine` | `{ok,binary,version,proxy,reason}`；仅 CLI 版本和代理 TCP 探测，不调用模型 |

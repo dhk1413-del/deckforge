@@ -914,7 +914,9 @@ async def run_beautify_page(project_id: str, page_no: int, style_pack_id: str = 
             planned = {p['page_no']: p for p in (beautify.content_plan(project_id, src).get('pages') or [])}
             planned_page = planned.get(page_no)
             page_mode = ('img2img' if planned_page.get('keep_material') else 'redesign') if planned_page else use_mode
-            res = await asyncio.to_thread(beautify.beautify_page, project_id, page_no, pack.get('tokens') or {}, page_mode, size, text)
+            keep_material = bool(planned_page.get('keep_material')) if planned_page else False
+            res = await asyncio.to_thread(beautify.beautify_page, project_id, page_no, pack.get('tokens') or {}, page_mode, size, text,
+                                          keep_material=keep_material, source_path=src)
             if is_cancelled(job['id']):
                 _job_update(job['id'], status='cancelled', message='已取消')
                 await emit(job['id'], dict(type='cancelled', message='已取消重生成'))
@@ -929,7 +931,8 @@ async def run_beautify_page(project_id: str, page_no: int, style_pack_id: str = 
             pages[page_no] = dict(page_no=page_no, origin=page['path'], beauty=res['path'], beauty_ok=res['ok'],
                                   provider=res.get('provider', 'local_render'), model=res.get('model', 'local'),
                                   cost_cny=res.get('cost_cny', 0), latency_ms=res.get('latency_ms', 0),
-                                  text_source=text['source'])
+                                  text_source=text['source'], keep_material=keep_material,
+                                  preserved_pictures=int(res.get('preserved_pictures') or 0))
             state['pages'] = [pages[k] for k in sorted(pages)]
             if warning:
                 state['warnings'] = (state.get('warnings') or []) + [warning]
@@ -1065,7 +1068,9 @@ async def run_beautify(project_id: str, style_pack_id: str, phase: str = 'previe
                     if is_cancelled(job['id']):
                         return None
                     page_mode = ('img2img' if text['keep_material'] else 'redesign') if n in planned else mode
-                    res = await asyncio.to_thread(beautify.beautify_page, project_id, n, pack.get('tokens') or {}, page_mode, size, text)
+                    keep_material = bool(text.get('keep_material')) if n in planned else False
+                    res = await asyncio.to_thread(beautify.beautify_page, project_id, n, pack.get('tokens') or {}, page_mode, size, text,
+                                                  keep_material=keep_material, source_path=src)
                     warning = res.get('warning', '')
                     if warning:
                         state['warnings'].append(warning)
@@ -1075,7 +1080,9 @@ async def run_beautify(project_id: str, style_pack_id: str, phase: str = 'previe
                                  size, res.get('cost_cny', 0), res.get('latency_ms', 0), res['ok'], warning)
                     row = dict(page_no=n, origin=page['path'], beauty=res['path'], beauty_ok=res['ok'],
                                provider=res.get('provider', 'local_render'), model=res.get('model', 'local'),
-                               cost_cny=res.get('cost_cny', 0), latency_ms=res.get('latency_ms', 0), text_source=text['source'])
+                               cost_cny=res.get('cost_cny', 0), latency_ms=res.get('latency_ms', 0), text_source=text['source'],
+                               keep_material=keep_material,
+                               preserved_pictures=int(res.get('preserved_pictures') or 0))
                     previous[n] = row
                     state['pages'] = [previous[k] for k in sorted(previous)]
                     state['updated_at'] = db.now()
