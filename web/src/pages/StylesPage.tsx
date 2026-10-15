@@ -81,7 +81,6 @@ export function StylesPage() {
                   navigate(`/?style=${encodeURIComponent(p.id)}`)
                 }}
                 onPreview={() => setPreviewing((v) => (v === p.id ? null : p.id))}
-                onDetail={() => navigate(`/styles/${encodeURIComponent(p.id)}`)}
               />
             ))}
           </div>

@@ -10,6 +10,7 @@ function CoverLightbox({ pack, onClose }: { pack: StylePack; onClose: () => void
   const modalRef = useModalFocus(onClose)
   const list = pack.previews?.length ? pack.previews : pack.cover ? [pack.cover] : []
   const [i, setI] = useState(0)
+  const [broken, setBroken] = useState<string | null>(null)
   const go = (d: number) => setI((v) => (v + d + list.length) % list.length)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -19,7 +20,18 @@ function CoverLightbox({ pack, onClose }: { pack: StylePack; onClose: () => void
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   })
-  if (!list.length) return null
+  // 没有可预览的图时也要有反馈，否则点「查看」像是坏了
+  if (!list.length) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" ref={modalRef} tabIndex={-1}
+           role="dialog" aria-modal="true" aria-label={`${pack.name} 没有可预览的图`} onClick={onClose}>
+        <div className="card flex max-w-md flex-col gap-3" onClick={(e) => e.stopPropagation()}>
+          <p className="m-0 text-body-sm">该风格没有可预览的图：style.md 既没有声明配色示意，也没有预览图。</p>
+          <button type="button" className="btn btn-secondary self-end" onClick={onClose}>关闭</button>
+        </div>
+      </div>
+    )
+  }
   return (
     <div
       className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-3 bg-black/70 p-4"
@@ -35,7 +47,13 @@ function CoverLightbox({ pack, onClose }: { pack: StylePack; onClose: () => void
         alt={`${pack.name} 预览 ${i + 1}`}
         className="max-h-[76vh] max-w-[92vw] rounded-md border border-white/25 bg-white object-contain"
         onClick={(e) => e.stopPropagation()}
+        onError={() => setBroken(list[i])}
       />
+      {broken === list[i] && (
+        <p className="m-0 rounded-md bg-white/95 px-3 py-2 text-body-sm" role="alert">
+          这张预览图不可访问：<span className="num">{list[i]}</span>（换一张或关闭后可继续）
+        </p>
+      )}
       <div className="flex flex-wrap items-center gap-2 text-white" onClick={(e) => e.stopPropagation()}>
         <span className="text-body-sm">
           {pack.name} · 第 {i + 1}/{list.length} 张
@@ -99,14 +117,12 @@ export function StylePackCard({
   previewing,
   onSelect,
   onPreview,
-  onDetail,
 }: {
   pack: StylePack
   selected: boolean
   previewing?: boolean
   onSelect: () => void
   onPreview?: () => void
-  onDetail?: () => void
 }) {
   const accent = safeHex(pack.accent, 'var(--color-accent)')
   const bg = safeHex(pack.bg, 'var(--color-surface-alt)')
@@ -131,9 +147,6 @@ export function StylePackCard({
             {previewing && <span className="status status-warn">查看中</span>}
           </div>
         </div>
-        <span className="num shrink-0 text-caption text-ink-sub">
-          {pack.layouts.length} 布局
-        </span>
       </div>
 
       {/* 封面缩略图：真实预览图；**没有才回落成配色示意**（不假装有图） */}
@@ -208,11 +221,6 @@ export function StylePackCard({
             }}
           >
             查看
-          </button>
-        )}
-        {onDetail && (
-          <button type="button" className="btn btn-ghost" onClick={onDetail}>
-            详情
           </button>
         )}
       </div>
