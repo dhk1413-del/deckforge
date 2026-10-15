@@ -18,6 +18,7 @@ import { useAsync } from '../hooks/useAsync'
 import { cn } from '../lib/format'
 import { sourceTypeOf } from '../lib/source'
 import { setPendingFile } from '../pendingFile'
+import { UPLOAD_SIZE_HINT, uploadTooLarge, MAX_UPLOAD_BYTES } from '../lib/format'
 import { navigate } from '../router'
 
 type Mode = 'topic' | 'editable' | 'reskin'
@@ -130,7 +131,7 @@ function TopicPanel() {
     if (!f) return
     if (!/\.(md|markdown|txt|docx|pdf|pptx)$/i.test(f.name))
       return setError(`不支持的格式：${f.name}；支持 TXT · MD · DOCX · PDF · PPTX`)
-    if (f.size > 30 * 1024 * 1024) return setError(`${f.name} 超过 30MB（${(f.size / 1048576).toFixed(1)}MB）`)
+    if (f.size > MAX_UPLOAD_BYTES) return setError(uploadTooLarge(f))
     setError(null)
     setFile(f)
   }
@@ -150,7 +151,7 @@ function TopicPanel() {
       <Dropzone
         head="拖入文档，开始生成 PPT"
         hint="点击此处选择文件"
-        formats="TXT · MD · DOCX · PDF · PPTX · 单文件最大 30MB"
+        formats={`TXT · MD · DOCX · PDF · PPTX · ${UPLOAD_SIZE_HINT}`}
         accept={DOC_ACCEPT}
         onPick={(picked) => choose(picked[0] ?? null)}
       />

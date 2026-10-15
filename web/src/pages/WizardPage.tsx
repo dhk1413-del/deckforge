@@ -21,6 +21,7 @@ import { ActionBar, FlowSteps, PageSelectGrid } from '../components/FlowKit'
 import { ContentEditor } from '../components/ContentEditor'
 import { Dropzone } from '../components/Dropzone'
 import { useTextReady } from '../components/ProviderStatus'
+import { MAX_UPLOAD_BYTES, UPLOAD_SIZE_HINT, uploadTooLarge } from '../lib/format'
 import { ProjectWorkbench } from '../components/ProjectWorkbench'
 import { SlidePreview } from '../components/SlidePreview'
 import { EmptyState, ErrorState, Loading, Notice, NotConfiguredBanner } from '../components/StateBlock'
@@ -44,7 +45,8 @@ const LAYOUT_FALLBACK: LayoutInfo[] = [
   { key: 'summary', title: '总结页', best_for: '收尾', slots: ['title', 'points'] },
 ]
 
-const SOURCE_PAGE_RETRY_LIMIT = 10
+// 大 PPTX（几十 MB）转 PDF 明显更慢，15 秒等不完；放宽到约 60 秒仍是有界轮询
+const SOURCE_PAGE_RETRY_LIMIT = 40
 
 /** 第 ② 步可编辑的页清单条目 */
 interface PageDraft {
@@ -320,8 +322,8 @@ export function WizardPage() {
   /* ---------------- ① 上传 ---------------- */
 
   async function handleFile(file: File) {
-    if (file.size > 30 * 1024 * 1024) {          // 与首页/美化一致：框里写着 30MB，这里就得拦住
-      setUploadError(new ApiError(`${file.name} 超过 30MB（${(file.size / 1048576).toFixed(1)}MB）`, 0))
+    if (file.size > MAX_UPLOAD_BYTES) {          // 与首页/美化共用同一个上限常量
+      setUploadError(new ApiError(uploadTooLarge(file), 0))
       setErrorAt(1)
       return
     }
@@ -513,7 +515,7 @@ export function WizardPage() {
           <Dropzone
             head="把原稿拖到这里"
             hint="或点击此处选择文件（单个文件）"
-            formats="TXT · MD · DOCX · PDF · PPTX · 单文件最大 30MB"
+            formats={`TXT · MD · DOCX · PDF · PPTX · ${UPLOAD_SIZE_HINT}`}
             accept={ACCEPT}
             onPick={(files) => {
               const f = files[0]

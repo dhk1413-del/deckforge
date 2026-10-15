@@ -7,7 +7,7 @@ import { ActionBar, FlowSteps, OverviewGrid, PageLightbox, PageRail, PageSelectG
 import { useToast } from './Toast'
 import { useModalFocus } from '../hooks/useModalFocus'
 import { useJobStream } from '../hooks/useJobStream'
-import { bytes, cn } from '../lib/format'
+import { MAX_UPLOAD_BYTES, UPLOAD_SIZE_HINT, bytes, cn, uploadTooLarge } from '../lib/format'
 import { navigate } from '../router'
 import type { BeautifyStatus, CodexEngineStatus, BeautifyContentPlan, StylePack } from '../types'
 
@@ -173,7 +173,7 @@ export function BeautifyPanel({ packs, loadingPacks, onStepChange, resumeProject
   function chooseFile(next: File) {
     if (busy) return
     if (!/\.(pptx|pdf)$/i.test(next.name)) { setError('请上传 PPTX 或 PDF'); return }
-    if (next.size > 30 * 1024 * 1024) { setError(`${next.name} 超过 30MB（${bytes(next.size)}）`); return }
+    if (next.size > MAX_UPLOAD_BYTES) { setError(uploadTooLarge(next)); return }
     setFile(next); setSourceName(next.name); setError(null); setOrigin(null); setResult(null); setJobId(null); setProjectId(null); setSelected([]); setStep(1)
     setKeepMaterial([]); setContent(null); setContentSaved(false)
   }
@@ -327,7 +327,7 @@ export function BeautifyPanel({ packs, loadingPacks, onStepChange, resumeProject
       {step === 5 && engine && !engine.ok && <div className="panel-alt text-body-sm" role="alert">Codex 引擎不可用：{engine.reason}，将只能产出图片版</div>}
       {step === 5 && engineError && <div className="error-box" role="alert">Codex 引擎探测失败：{engineError}</div>}
       {step === 1 && <>
-        {!file ? <Dropzone head="拖入要美化的 PPTX / PDF" hint="选择文件后，点击「开始 PPT 美化」分析页面" formats="PPTX · PDF · 单文件最大 30MB" accept=".pptx,.pdf" onPick={(picked) => { if (picked[0]) chooseFile(picked[0]) }} /> : <div className="flex min-h-64 flex-col items-center justify-center gap-4 rounded-2xl border border-border bg-surface-band px-6 py-8 text-center">
+        {!file ? <Dropzone head="拖入要美化的 PPTX / PDF" hint="选择文件后，点击「开始 PPT 美化」分析页面" formats={`PPTX · PDF · ${UPLOAD_SIZE_HINT}`} accept=".pptx,.pdf" onPick={(picked) => { if (picked[0]) chooseFile(picked[0]) }} /> : <div className="flex min-h-64 flex-col items-center justify-center gap-4 rounded-2xl border border-border bg-surface-band px-6 py-8 text-center">
           <span className="flex h-16 w-16 items-center justify-center rounded-2xl border border-border bg-surface text-primary"><IconFolder className="h-7 w-7" /></span>
           <h3 className="m-0 max-w-full break-words text-h3">{file.name}</h3>
           <p className="m-0 text-ink-sub">{file.name.toLowerCase().endsWith('.pdf') ? 'PDF' : 'PPTX'} · <span className="num">{bytes(file.size)}</span> · {busy ? '正在分析页面…' : '已就绪'}</p>
