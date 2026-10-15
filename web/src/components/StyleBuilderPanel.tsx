@@ -290,7 +290,6 @@ export function StyleBuilderPanel({
   const [uploadRes, setUploadRes] = useState<StyleBuilderUploadResponse | null>(null)
   const [useVision, setUseVision] = useState(true)
   const [jobId, setJobId] = useState<string | null>(null)
-  const [progressUrl, setProgressUrl] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [formError, setFormError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -365,7 +364,6 @@ export function StyleBuilderPanel({
     seededRef.current = ''
     setUploadRes(null)
     setJobId(null)
-    setProgressUrl(null)
     setPhase('pick')
     setUploading(false)
     setSaving(false)
@@ -418,7 +416,6 @@ export function StyleBuilderPanel({
     setPhase('analyzing')
     try {
       const res = await analyzeStyleBuilder(bid, { use_vision: useVision })
-      setProgressUrl(res.progress_url)
       setJobId(res.job_id)
       reload()
     } catch (e) {
@@ -643,11 +640,6 @@ export function StyleBuilderPanel({
         <div className="flex flex-col gap-3">
           <StageStrip seen={seenStages} current={currentStage} />
           <ProgressPanel job={stream} stageLabel="正在解析风格" />
-          {progressUrl && (
-            <span className="num text-caption text-ink-sub" title="后端返回的进度流地址（前端按 job_id 订阅）">
-              进度流：{progressUrl}
-            </span>
-          )}
         </div>
       )}
 
