@@ -567,10 +567,6 @@ export function BeautifyPanel({ packs, loadingPacks, onStepChange, resumeProject
                   ? <button type="button" className="deck-media-open" title="点击放大查看" onClick={() => setLightbox(true)}><img src={withVersion(resultCurrent.beauty_url, result.updated_at)} alt={`第 ${resultCurrent.page_no} 页生成结果`} /></button>
                   : <p className="deck-slide-empty">这一页还没有生成结果{result.phase === 'preview' ? '：预览阶段只生成所选页中的前 3 页' : ''}。</p>}
             </div>
-            <div className="deck-slide-meta">
-              <span>结果来源：{resultCurrent.beauty_ok ? '生图模型' : resultCurrent.beauty_url ? '生图失败，已用原图' : '尚未生成'}</span>
-              <span>文字真源：{resultCurrent.text_source === 'none' ? '无（后端会降级为图生图）' : resultCurrent.text_source.toUpperCase()}</span>
-            </div>
             {resultCurrent.beauty_ok === false && resultCurrent.beauty_url && <p className="m-0 text-body-sm text-ink-sub" role="alert">该页生图失败，当前显示的是原图副本；可点上方「重新生成本页」再试，成本会计入账本。</p>}
             {showOrigin && (resultCurrent.origin_url
               ? <img src={resultCurrent.origin_url} alt={`原稿第 ${resultCurrent.page_no} 页`} className="deck-slide-origin" loading="lazy" />
