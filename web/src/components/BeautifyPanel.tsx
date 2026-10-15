@@ -8,7 +8,6 @@ import { useToast } from './Toast'
 import { useModalFocus } from '../hooks/useModalFocus'
 import { useJobStream } from '../hooks/useJobStream'
 import { MAX_UPLOAD_BYTES, UPLOAD_SIZE_HINT, bytes, cn, uploadTooLarge } from '../lib/format'
-import { navigate } from '../router'
 import type { BeautifyStatus, CodexEngineStatus, BeautifyContentPlan, StylePack } from '../types'
 
 /* ─────────────── ③ PPT美化：上传 / 预览 / 完成 ─────────────── */
@@ -522,8 +521,6 @@ export function BeautifyPanel({ packs, loadingPacks, onStepChange, resumeProject
           <button type="button" className="btn btn-secondary" disabled={busy || currentStylePage === stylePageCount} onClick={() => setStylePage(currentStylePage + 1)}>下一页</button>
         </nav>}
         {packId && <p className="m-0 text-body-sm text-ink-sub">当前风格：<span className="font-semibold text-primary">{packs.find(pack => pack.id === packId)?.name || packId}</span></p>}
-        <button type="button" className="link self-start" onClick={() => navigate('/style-builder')}>自定义风格（上传参考文件）</button>
-        <p className="m-0 text-body-sm text-ink-sub">生成预览会调用已配置的生图模型，费用按设置与用量账本记录。</p>
       </>}
       {error && <div className="error-box text-body-sm" role="alert">{error}</div>}
       {jobId && busy && stream.status === 'running' && <button type="button" className="btn btn-secondary self-start" disabled={cancelling} onClick={() => void cancelCurrent()}>{cancelling ? '正在取消，等待当前步骤结束…' : '取消生成'}</button>}
