@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ApiError, configureProject, deleteProject, listProjects } from '../api'
 import { useAsync } from '../hooks/useAsync'
-import { projectStageLabel, statusLabel } from '../lib/format'
+import { cn, projectStageLabel, statusLabel } from '../lib/format'
 import { EmptyState, ErrorState, Loading } from '../components/StateBlock'
 import { IconCheck, IconClock } from '../components/Icons'
 import { useToast } from '../components/Toast'
@@ -27,12 +27,7 @@ function statusTone(status: string) {
   return { icon: 'clock' as const, cls: 'text-ink-muted' }
 }
 
-const SOURCE_LABEL: Record<string, string> = {
-  markdown: 'Markdown', md: 'Markdown', txt: 'TXT', text: '粘贴文本',
-  docx: 'DOCX', pdf: 'PDF', pptx: 'PPTX', json: 'JSON',
-}
 
-const INTAKE_LABEL: Record<string, string> = { doc: '文档生成', paste: '粘贴文本' }
 
 const fmtDay = (iso?: string) => {
   const date = new Date(iso || '')
@@ -127,7 +122,6 @@ function ProjectCard({ project, onRenamed, onDeleted }: { project: Project; onRe
   const wrapRef = useRef<HTMLDivElement>(null)
   const latest = exports[0]
   const tone = statusTone(project.status)
-  const metaLine = `${SOURCE_LABEL[project.source_type] || project.source_type} · ${INTAKE_LABEL[project.intake_mode || 'doc'] || project.intake_mode}`
 
   useEffect(() => {
     if (!menu && !downloads) return
@@ -138,12 +132,17 @@ function ProjectCard({ project, onRenamed, onDeleted }: { project: Project; onRe
     return () => { window.removeEventListener('mousedown', onDown); window.removeEventListener('keydown', onKey) }
   }, [menu, downloads])
 
+  const stageStep = project.resume_step ?? 1        // 后端未给阶段时按第①步显示，不编造
+
   return (
     <article className="project-card" ref={wrapRef}>
       <div className="project-cover">
-        {project.cover_url && !shotFailed
-          ? <img src={project.cover_url} alt={`${project.title} 封面`} loading="lazy" onError={() => setShotFailed(true)} />
-          : <span className="project-cover-empty">{project.cover_url ? '封面图不可访问' : '暂无封面'}</span>}
+        <Link to={`/projects/${encodeURIComponent(project.id)}`} className="project-cover-link"
+              title={`打开「${project.title || '未命名项目'}」`} aria-label={`打开项目：${project.title || '未命名项目'}`}>
+          {project.cover_url && !shotFailed
+            ? <img src={project.cover_url} alt={`${project.title} 封面`} loading="lazy" onError={() => setShotFailed(true)} />
+            : <span className="project-cover-empty">{project.cover_url ? '封面图不可访问' : '暂无封面'}</span>}
+        </Link>
         <button type="button" className="project-more" aria-label="更多操作" aria-haspopup="menu" aria-expanded={menu} onClick={() => { setMenu((v) => !v); setDownloads(false) }}>…</button>
         {menu && <div className="project-menu" role="menu">
           <button type="button" role="menuitem" onClick={() => navigate(`/projects/${encodeURIComponent(project.id)}`)}>打开工作台</button>
@@ -154,9 +153,14 @@ function ProjectCard({ project, onRenamed, onDeleted }: { project: Project; onRe
       </div>
 
       <Link to={`/projects/${encodeURIComponent(project.id)}`} className="project-title" title={project.title}>{project.title || '(无标题)'}</Link>
-      <p className="project-meta">{metaLine}</p>
-      <p className="project-meta">
-        <span className="num">{project.page_count}</span> 页 · {fmtDay(project.created_at)} · 阶段：{projectStageLabel(project.resume_step)}
+      <p className="project-meta project-meta-facts">
+        <span className="fact-pages"><span className="num">{project.page_count}</span> 页</span>
+        <span className="fact-sep" aria-hidden="true">·</span>
+        <span className="fact-date">{fmtDay(project.created_at)}</span>
+        <span className="fact-sep" aria-hidden="true">·</span>
+        <span className={cn('fact-stage', stageStep >= 5 && 'is-done', stageStep === 4 && 'is-doing')}>
+          阶段：{projectStageLabel(stageStep)}
+        </span>
       </p>
       <p className={`project-status ${tone.cls}`}>
         {tone.icon === 'check' ? <IconCheck className="h-4 w-4" /> : <IconClock className="h-4 w-4" />}
@@ -225,17 +229,10 @@ export function ProjectsPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-end gap-3">
-        <div>
-          <p className="m-0 text-caption font-semibold text-primary">创作空间</p>
-          <h1 className="m-0 mt-1 text-h1 font-semibold">我的项目</h1>
-          <p className="m-0 mt-2 text-ink-sub">
-            共 <span className="num">{items.length}</span> 个项目 · 按创建时间倒序，列表每 <span className="num">5</span> 秒自动刷新
-          </p>
-        </div>
+      <div className="flex flex-wrap items-center gap-3">
+        <h1 className="m-0 text-h1 font-semibold">我的项目</h1>
         <span className="flex-1" />
         <button type="button" className="btn btn-secondary" onClick={projects.reload}>刷新</button>
-        <Link to="/" className="btn btn-primary px-6!">新建生成</Link>
       </div>
 
       <div className="card flex flex-wrap items-end gap-3">

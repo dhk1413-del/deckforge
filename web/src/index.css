@@ -158,6 +158,18 @@
 .project-card { position: relative; display: flex; min-width: 0; flex-direction: column; gap: 8px; padding: 10px 10px 12px; border: 1px solid var(--color-border); border-radius: 20px; background: var(--color-surface); box-shadow: 0 2px 5px rgba(16, 40, 90, .03); }
 .project-cover { position: relative; display: flex; width: 100%; aspect-ratio: 16 / 9; align-items: center; justify-content: center; overflow: hidden; border-radius: 14px; background: var(--color-surface-alt); }
 .project-cover img { display: block; width: 100%; height: 100%; object-fit: cover; }
+/* 封面与标题都可点击进入项目 */
+.project-cover-link { display: block; width: 100%; height: 100%; }
+.project-cover-link:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+/* 页数 / 日期 / 阶段：用颜色区分，阶段按进度给不同底色 */
+.project-meta-facts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.project-meta-facts .fact-pages { color: var(--color-ink); font-weight: 600; }
+.project-meta-facts .fact-sep { color: var(--color-border-strong); }
+.project-meta-facts .fact-date { color: var(--color-ink-muted); }
+.project-meta-facts .fact-stage { padding: 1px 8px; border-radius: 999px; background: var(--color-surface-alt); color: var(--color-ink-sub); }
+.project-meta-facts .fact-stage.is-doing { background: rgba(32, 104, 240, .12); color: var(--color-primary); }
+.project-meta-facts .fact-stage.is-done { background: var(--color-success-bg); color: var(--color-success-ink); }
+
 .project-cover-empty { color: var(--color-ink-muted); font-size: var(--text-body-md); }
 .project-more { position: absolute; top: 10px; right: 10px; display: inline-flex; width: 32px; height: 32px; align-items: center; justify-content: center; border-radius: 10px; background: var(--color-surface); color: var(--color-ink-sub); font-size: 18px; line-height: 1; box-shadow: 0 1px 3px rgba(16, 40, 90, .12); }
 .project-more:hover { color: var(--color-primary); }
