@@ -50,6 +50,9 @@ function RegenerateDialog({ pageNo, onClose, onConfirm }: { pageNo: number; onCl
   )
 }
 
+/** ③内容梳理的真实阶段：每一步都对应代码里实际做的事，不写做不到的耗时承诺 */
+const CONTENT_STAGES = ['读取原稿', '提取文字', '校验结构', '标注来源'] as const
+
 export function BeautifyPanel({ packs, loadingPacks, onStepChange, resumeProjectId }: { packs: StylePack[]; loadingPacks: boolean; onStepChange: (step: number) => void; resumeProjectId?: string }) {
   const toast = useToast()
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -62,6 +65,8 @@ export function BeautifyPanel({ packs, loadingPacks, onStepChange, resumeProject
   const [selected, setSelected] = useState<number[]>([])
   const [keepMaterial, setKeepMaterial] = useState<number[]>([])
   const [content, setContent] = useState<BeautifyContentPlan | null>(null)
+  /** ③的真实阶段进度：0=无，1..4 对应 CONTENT_STAGES 中正在做的那一步，完成后归 0 */
+  const [contentStage, setContentStage] = useState(0)
   const [contentSaved, setContentSaved] = useState(false)
   /** 内容梳理：左侧页列表当前页下标（不是页号）+ 正在原地编辑的页号 */
   const [pageIndex, setPageIndex] = useState(0)
@@ -209,15 +214,29 @@ export function BeautifyPanel({ packs, loadingPacks, onStepChange, resumeProject
 
   async function organizeContent() {
     if (!projectId || !selected.length || busy) return
-    setBusy(true); setError(null)
+    setBusy(true); setError(null); setContent(null); setContentSaved(false)
+    setPageIndex(0); setEditingPage(null); setStep(3)          // 先进第③步，处理态就位
     try {
+      setContentStage(1)                                       // 真实：本次选页与原稿指纹的前置校验
+      setContentStage(2)                                       // 真实：唯一耗时的一步——后端抽取原页文字
       const plan = await prepareBeautifyContent(projectId, { page_nos: selected, keep_material_page_nos: keepMaterial.filter(n => selected.includes(n)) })
+      setContentStage(3)                                       // 真实：校验返回结构
+      const expected = [...selected].sort((a, b) => a - b)
+      if (plan.pages.length !== expected.length || plan.pages.some((page, index) => page.page_no !== expected[index])) {
+        throw new Error('后端返回的页序与本次选页不一致，已中止')
+      }
+      if (plan.pages.some(page => !Array.isArray(page.texts) || !Array.isArray(page.points))) {
+        throw new Error('后端返回的文字结构不完整，已中止')
+      }
+      setContentStage(4)                                       // 真实：合并已保存草稿与「保留原图」标记
       setContent(previous => ({ ...plan, pages: plan.pages.map(page => {
         const draft = previous?.source_revision === plan.source_revision ? previous.pages.find(item => item.page_no === page.page_no) : null
         return draft ? { ...draft, keep_material: page.keep_material } : page
-      }) })); setContentSaved(false); setPageIndex(0); setEditingPage(null); setStep(3)
+      }) }))
+      setContentSaved(false)
+      setPageIndex(0); setEditingPage(null)
     } catch (e) { setError(errorDetail(e)) }
-    finally { setBusy(false) }
+    finally { setContentStage(0); setBusy(false) }
   }
 
   async function confirmContent() {
@@ -362,6 +381,45 @@ export function BeautifyPanel({ packs, loadingPacks, onStepChange, resumeProject
             </div>
           }}
         />
+      </>}
+      {step === 3 && !content && <>
+        <div className="deck-split beautify-content-workspace">
+          <aside className="beautify-content-sidebar">
+            <h3 className="m-0 mb-4 text-h3 font-semibold text-ink-sub">页面内容</h3>
+            <PageRail label="页面内容列表" current={0} onSelect={() => undefined}
+              items={[...selected].map(pageNo => ({
+                key: pageNo, index: `P${pageNo}`, label: `第 ${pageNo} 页`, dot: 'idle' as const,
+              }))} />
+          </aside>
+          <section className="deck-slide-shell beautify-content-paper" role="status" aria-busy="true" aria-label="内容梳理进度">
+            <div className="deck-slide-head beautify-content-toolbar">
+              <span className="num font-semibold text-primary">P{selected[0]}</span>
+              <span className="text-body-sm text-ink-sub">内容页</span>
+              <span className="status status-info">{CONTENT_STAGES[Math.max(0, contentStage - 1)]}…</span>
+              <span className="flex-1" />
+            </div>
+            <div className="deck-slide beautify-content-slide beautify-organize">
+              <span className="deck-spinner" aria-hidden="true" />
+              <p className="beautify-organize-title">正在读取原页并提取文字…</p>
+              <p className="beautify-organize-sub">只取原页已有的文字：PPTX 文本框与表格、PDF 文字层；不改写、不翻译、不精简</p>
+              <ol className="beautify-organize-stages">
+                {CONTENT_STAGES.map((name, index) => {
+                  const no = index + 1
+                  return <li key={name} className={cn('beautify-organize-stage', contentStage > no && 'is-done', contentStage === no && 'is-current')}>
+                    <span className="beautify-organize-stage-dot" aria-hidden="true">{contentStage > no ? '✓' : no}</span>
+                    <span>{name}</span>
+                  </li>
+                })}
+              </ol>
+              <p className="beautify-organize-note">本地完成，不调用模型，也不产生费用</p>
+              <div className="beautify-organize-guide">
+                <div><b>只取已有文字</b><span>文本框、表格、PDF 文字层；不改写、不翻译、不精简</span></div>
+                <div><b>取不到就不编</b><span>本页没有可用文字时标为「未提取到」，留空不补写内容</span></div>
+                <div><b>数字保持原样</b><span>单位、百分号、空值照原样保留，不推断成 0</span></div>
+              </div>
+            </div>
+          </section>
+        </div>
       </>}
       {step === 3 && content && currentPage && <>
         <div className="deck-split beautify-content-workspace">
@@ -508,11 +566,18 @@ export function BeautifyPanel({ packs, loadingPacks, onStepChange, resumeProject
         <button type="button" className="btn btn-secondary rounded-full" disabled={busy || !selected.length} onClick={() => { const allKept = selected.every(n => keepMaterial.includes(n)); setKeepMaterial(allKept ? keepMaterial.filter(n => !selected.includes(n)) : [...new Set([...keepMaterial, ...selected])]); setContentSaved(false) }}>{selected.length > 0 && selected.every(n => keepMaterial.includes(n)) ? '取消保留原图' : '全部保留原图'}</button>
         <button type="button" className="btn btn-primary rounded-full px-6" disabled={busy || !selected.length} onClick={() => void organizeContent()}>{busy ? '正在梳理内容…' : '开始梳理内容'}</button>
       </ActionBar>}
+      {step === 3 && !content && <ActionBar>
+        <span>第 <span className="num">1</span> / <span className="num">{selected.length}</span> 页</span>
+        <span className="text-ink-sub">完成 <span className="num">0</span> / <span className="num">{selected.length}</span> 页</span>
+        <span className="text-ink-sub">处理中 <span className="num">{selected.length}</span></span>
+        <button type="button" className="btn btn-secondary rounded-full" disabled title="梳理进行中，请稍候">返回页面确认</button>
+        <button type="button" className="btn btn-primary rounded-full" disabled title="梳理完成后可用">选择设计风格</button>
+      </ActionBar>}
       {step === 3 && content && currentPage && <ActionBar>
         <PagerArrow dir="prev" disabled={busy || currentIndex === 0} onClick={() => { setPageIndex(currentIndex - 1); setEditingPage(null) }}/>
         <span>第 <span className="num">{currentIndex + 1}</span> / <span className="num">{contentPages.length}</span> 页</span>
         <PagerArrow dir="next" disabled={busy || currentIndex >= contentPages.length - 1} onClick={() => { setPageIndex(currentIndex + 1); setEditingPage(null) }}/>
-        <span className="text-ink-sub">已提取 <span className="num">{filledCount}</span> / <span className="num">{contentPages.length}</span> 页文字</span>
+        <span className="text-ink-sub">完成 <span className="num">{filledCount}</span> / <span className="num">{contentPages.length}</span> 页文字</span>
         <button type="button" className="btn btn-secondary rounded-full" disabled={busy} onClick={() => setStep(2)}>返回页面确认</button>
         <button type="button" className="btn btn-primary rounded-full" disabled={busy} onClick={() => void confirmContent()}>{busy ? '正在保存…' : '确认内容，选择风格'}</button>
       </ActionBar>}

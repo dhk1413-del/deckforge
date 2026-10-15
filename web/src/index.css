@@ -220,3 +220,22 @@
 .deck-loading-actions { width: 100%; max-width: 720px; }
 @media (max-width: 639px) { .deck-loading-card { padding: 32px 20px; } .deck-loading-meta { gap: 8px 18px; } }
 @media (prefers-reduced-motion: reduce) { .deck-spinner, .deck-loading-bar i { animation: none; } }
+
+/* ③内容梳理：处理中页面。阶段只标代码里真实完成的动作，不写耗时承诺 */
+.beautify-organize { align-items: center; justify-content: center; gap: 8px; min-height: 380px; padding: 36px 24px; }
+.beautify-organize-title { margin: 10px 0 0; font-size: var(--text-h3); font-weight: 600; }
+.beautify-organize-sub { margin: 0; color: var(--color-ink-sub); font-size: var(--text-body-sm); text-align: center; }
+.beautify-organize-stages { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px 18px; margin: 18px 0 0; padding: 0; list-style: none; }
+.beautify-organize-stage { display: inline-flex; align-items: center; gap: 7px; color: var(--color-ink-muted); font-size: var(--text-body-sm); }
+.beautify-organize-stage.is-done { color: var(--color-ink-sub); }
+.beautify-organize-stage.is-current { color: var(--color-primary); font-weight: 600; }
+.beautify-organize-stage-dot { display: grid; place-items: center; width: 18px; height: 18px; border: 2px solid var(--color-border); border-radius: 50%; font-size: 11px; }
+.beautify-organize-stage.is-current .beautify-organize-stage-dot { border-color: var(--color-primary); }
+.beautify-organize-stage.is-done .beautify-organize-stage-dot { border-color: var(--color-primary); background: var(--color-primary); color: #fff; }
+.beautify-organize-note { margin: 6px 0 0; color: var(--color-ink-muted); font-size: var(--text-body-sm); }
+.beautify-organize-guide { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px 20px; width: 100%; max-width: 760px; margin-top: 20px; padding: 18px 20px; border: 1px solid var(--color-border); border-radius: 16px; background: var(--color-surface-alt); text-align: left; }
+.beautify-organize-guide > div { display: flex; flex-direction: column; gap: 6px; }
+.beautify-organize-guide b { font-size: var(--text-body-sm); font-weight: 600; }
+.beautify-organize-guide span { color: var(--color-ink-sub); font-size: var(--text-body-sm); }
+@media (max-width: 720px) { .beautify-organize-guide { grid-template-columns: 1fr; } }
+@media (prefers-reduced-motion: reduce) { .beautify-organize .deck-spinner { animation-duration: 2.4s; } }
