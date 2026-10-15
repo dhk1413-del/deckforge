@@ -191,12 +191,18 @@ def project_jobs(pid: str):
 
 
 def project_flow(pid: str) -> str:
-    """项目属于哪条流程：`beautify`（PPT 美化五步）或 `wizard`（文档生成向导）。
+    """项目属于哪条流程：`beautify`（PPT 美化）/ `editable`（图片转可编辑）/ `wizard`（文档生成向导）。
 
-    判据是磁盘上的美化现场 `data/files/<pid>/beautify/`——美化流程上传原稿后第一步就会落地它。
+    判据都是磁盘事实：`data/files/<pid>/beautify/` 由美化上传落地；`data/files/<pid>/import/`
+    由「图片转可编辑」导入原页时落地；两者都没有即视为文档生成向导。
     这里只做事实判断，不猜测「用户想用哪条流程」。
     """
-    return "beautify" if os.path.isdir(os.path.join(config.FILES_DIR, pid, "beautify")) else "wizard"
+    root = os.path.join(config.FILES_DIR, pid)
+    if os.path.isdir(os.path.join(root, "beautify")):
+        return "beautify"
+    if os.path.isdir(os.path.join(root, "import")):
+        return "editable"
+    return "wizard"
 
 
 @app.get("/api/projects/{pid}")

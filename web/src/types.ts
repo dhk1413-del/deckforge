@@ -178,7 +178,7 @@ export interface Project {
   /** 项目封面：只取成品类图片（生成结果 / 美化结果 / 导入成品页），没有则为空 */
   cover_url?: string
   /** 该项目属于哪条流程：beautify（PPT 美化五步）/ wizard（文档生成向导） */
-  flow?: 'beautify' | 'wizard' | string
+  flow?: 'beautify' | 'editable' | 'wizard' | string
   /** 已上传原稿在磁盘上的路径（美化流程恢复时用来取原稿文件名） */
   source_path?: string | null
   /** 该项目的历史导出记录，按时间倒序 */

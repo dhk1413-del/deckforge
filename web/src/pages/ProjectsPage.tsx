@@ -1,14 +1,24 @@
-/** 项目：卡片网格（封面 / 标题 / 元信息 / 状态 / 下载）+ 名称·阶段·状态筛选；卡片进工作台 */
+/** 项目：卡片网格（封面 / 标题 / 元信息 / 状态 / 下载）+ 名称·阶段·项目类别筛选；
+ *  类别为「备注生成」时改为列出备注任务（备注不是 project，数据来自 GET /api/notes）。 */
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ApiError, configureProject, deleteProject, listProjects } from '../api'
+import { ApiError, configureProject, deleteProject, listNotes, listProjects } from '../api'
 import { useAsync } from '../hooks/useAsync'
-import { cn, projectStageLabel, statusLabel } from '../lib/format'
+import { cn, notesStatusLabel, projectStageLabel, statusLabel } from '../lib/format'
 import { EmptyState, ErrorState, Loading } from '../components/StateBlock'
 import { IconCheck, IconClock } from '../components/Icons'
 import { useToast } from '../components/Toast'
 import { useModalFocus } from '../hooks/useModalFocus'
 import { Link, readQuery, navigate } from '../router'
-import type { Project, ProjectExportBrief } from '../types'
+import type { NotesJob, Project, ProjectExportBrief } from '../types'
+
+/** 项目类别：前三个按后端 flow 事实判定，备注是独立实体（GET /api/notes） */
+const CATEGORY_OPTIONS: Array<{ key: string; label: string }> = [
+  { key: '', label: '全部类别' },
+  { key: 'wizard', label: 'PPT生成' },
+  { key: 'beautify', label: 'PPT美化' },
+  { key: 'editable', label: '图片转可编辑' },
+  { key: 'notes', label: '备注生成' },
+]
 
 /* 导出类型的真实名称（后端 kind → 界面文案），不认识的原样显示 */
 const EXPORT_LABEL: Record<string, string> = {
@@ -218,14 +228,17 @@ export function ProjectsPage() {
     const query = Object.entries(next).filter(([, v]) => v).map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join('&')
     navigate(`/projects${query ? '?' + query : ''}`)
   }
-  const filtered = items.filter(p =>
-    (!filters.q || (p.title || '').toLocaleLowerCase().includes(filters.q.trim().toLocaleLowerCase())) &&
+  /** 备注任务：只有切到「备注生成」这一类别时才展示，数据来自独立接口 */
+  const notes = useAsync(listNotes, [])
+  const noteItems = notes.data?.items ?? []
+  const matchName = (title: string) => !filters.q || (title || '').toLocaleLowerCase().includes(filters.q.trim().toLocaleLowerCase())
+  const noteMatches = noteItems.filter(note => matchName(note.title))
+  const byCategory = filters.category === 'notes' ? [] : items.filter(p =>
+    matchName(p.title) &&
     (!filters.stage || String(p.resume_step || 1) === filters.stage) &&
-    (!filters.status || p.status === filters.status))
-  const hasFilter = Boolean(filters.q || filters.stage || filters.status)
-  const statusOptions = useMemo(
-    () => [...new Set([...items.map(p => p.status), ...(filters.status ? [filters.status] : [])])].sort(),
-    [items, filters.status])
+    (!filters.category || p.flow === filters.category))
+  const filtered = byCategory
+  const hasFilter = Boolean(filters.q || filters.stage || filters.category)
 
   return (
     <div className="flex flex-col gap-4">
@@ -237,17 +250,18 @@ export function ProjectsPage() {
 
       <div className="card flex flex-wrap items-end gap-3">
         <label>按名称搜索<input className="input" type="search" value={filters.q || ''} onChange={e => updateFilter('q', e.target.value)} placeholder="输入项目名称" /></label>
-        <label>阶段<select className="input" value={filters.stage || ''} onChange={e => updateFilter('stage', e.target.value)}><option value="">全部阶段</option>{[1,2,3,4,5].map(step => <option key={step} value={step}>{projectStageLabel(step)}</option>)}</select></label>
-        <label>状态<select className="input" value={filters.status || ''} onChange={e => updateFilter('status', e.target.value)}><option value="">全部状态</option>{statusOptions.map(status => <option key={status} value={status}>{statusLabel(status)}</option>)}</select></label>
+        <label>项目类别<select className="input" value={filters.category || ''} onChange={e => updateFilter('category', e.target.value)}>{CATEGORY_OPTIONS.map(item => <option key={item.key} value={item.key}>{item.label}</option>)}</select></label>
+        {filters.category !== 'notes' && <label>阶段<select className="input" value={filters.stage || ''} onChange={e => updateFilter('stage', e.target.value)}><option value="">全部阶段</option>{[1,2,3,4,5].map(step => <option key={step} value={step}>{projectStageLabel(step)}</option>)}</select></label>}
         <button type="button" className="btn btn-secondary" disabled={!hasFilter} onClick={() => {setFilters({}); navigate('/projects')}}>清除搜索与筛选</button>
-        <span role="status" className="num">{hasFilter ? `找到 ${filtered.length} 个项目` : ''}</span>
+        <span role="status" className="num">{hasFilter ? (filters.category === 'notes' ? `找到 ${noteMatches.length} 个备注任务` : `找到 ${filtered.length} 个项目`) : ''}</span>
       </div>
-      {items.length > 0 && filtered.length === 0 && <div className="card"><EmptyState title="没有符合条件的项目" desc="请更换项目名称、阶段或状态，或清除搜索与筛选。" /></div>}
+      {filters.category !== 'notes' && items.length > 0 && filtered.length === 0 && <div className="card"><EmptyState title="没有符合条件的项目" desc="请更换项目名称、项目类别或阶段，或清除搜索与筛选。" /></div>}
+      {filters.category === 'notes' && !notes.loading && !notes.error && noteItems.length > 0 && noteMatches.length === 0 && <div className="card"><EmptyState title="没有符合条件的备注任务" desc="请更换名称关键词，或清除搜索与筛选。" /></div>}
 
       {projects.loading && !items.length && <Loading rows={3} label="加载项目…" />}
       {projects.error && <ErrorState error={projects.error} onRetry={projects.reload} title="项目列表加载失败" />}
 
-      {!projects.loading && !projects.error && items.length === 0 && (
+      {filters.category !== 'notes' && !projects.loading && !projects.error && items.length === 0 && (
         <div className="card">
           <EmptyState
             title="还没有项目"
@@ -258,6 +272,33 @@ export function ProjectsPage() {
         </div>
       )}
 
+      {filters.category === 'notes' && <>
+        {notes.loading && !noteItems.length && <Loading rows={3} label="加载备注任务…" />}
+        {notes.error && <ErrorState error={notes.error} onRetry={notes.reload} title="备注任务加载失败" />}
+        {!notes.loading && !notes.error && noteItems.length === 0 && (
+          <div className="card"><EmptyState title="还没有备注任务" desc="到「备注生成」上传 PPTX / PDF，即可按页生成讲稿备注。" actionLabel="去备注生成" to="/notes" /></div>
+        )}
+        {noteMatches.length > 0 && <div className="project-grid">
+          {noteMatches.map((note: NotesJob) => {
+            const tone = statusTone(note.status)
+            return <article key={note.id} className="project-card">
+              <Link to={`/notes/${encodeURIComponent(note.id)}`} className="project-title" title={note.title}>{note.title || '(无标题)'}</Link>
+              <p className="project-meta project-meta-facts">
+                <span className="fact-pages"><span className="num">{note.pages}</span> 页</span>
+                <span className="fact-sep" aria-hidden="true">·</span>
+                <span className="fact-date">{fmtDay(note.created_at)}</span>
+              </p>
+              <p className={`project-status ${tone.cls}`}>
+                {tone.icon === 'check' ? <IconCheck className="h-4 w-4" /> : <IconClock className="h-4 w-4" />}
+                {notesStatusLabel(note.status)}
+              </p>
+              <div className="project-actions">
+                <Link className="project-download" to={`/notes/${encodeURIComponent(note.id)}`}>打开备注</Link>
+              </div>
+            </article>
+          })}
+        </div>}
+      </>}
       {filtered.length > 0 && <div className="project-grid">
         {filtered.map(project => <ProjectCard key={project.id} project={project}
           onRenamed={() => {projects.reload(); toast.success('已重命名')}}

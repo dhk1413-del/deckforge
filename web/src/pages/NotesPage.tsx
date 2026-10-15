@@ -8,7 +8,7 @@ import { useMemo, useRef, useState } from 'react'
 import { ApiError, listNotes, uploadNotesPptx, deleteNotesJob } from '../api'
 import { EmptyState, ErrorState, Loading } from '../components/StateBlock'
 import { useAsync } from '../hooks/useAsync'
-import { cn, fmtTime } from '../lib/format'
+import { cn, fmtTime, notesStatusLabel } from '../lib/format'
 import { Link, navigate } from '../router'
 import type { NotesJob, NotesJobDetail } from '../types'
 
@@ -142,7 +142,7 @@ function NoteRow({ job, onDeleted }: { job: NotesJob; onDeleted: () => void }) {
   return (
     <li className="flex flex-wrap items-center gap-3 rounded-md border border-border px-3 py-2">
       <span className={cn('status', done ? 'status-success' : job.status === 'failed' ? 'status-danger' : 'status-info')}>
-        {STATUS_TEXT[job.status] ?? job.status}
+        {notesStatusLabel(job.status)}
       </span>
       <Link to={`/notes/${job.id}`} className="text-body-md text-ink no-underline hover:underline">
         {job.title || job.source_name}
@@ -171,13 +171,4 @@ function NoteRow({ job, onDeleted }: { job: NotesJob; onDeleted: () => void }) {
       </button>
     </li>
   )
-}
-
-const STATUS_TEXT: Record<string, string> = {
-  uploaded: '刚上传',
-  analyzing: '识别中',
-  analyzed: '已识别',
-  generating: '写备注中',
-  done: '已完成',
-  failed: '失败',
 }

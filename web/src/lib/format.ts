@@ -85,6 +85,17 @@ export const STATUS_LABEL: Record<string, string> = {
 
 export const statusLabel = (s: string) => STATUS_LABEL[s] ?? s
 
+/** 备注任务状态 → 中文。与项目状态区分：备注的 generating 是「写备注中」 */
+export const NOTES_STATUS_LABEL: Record<string, string> = {
+  uploaded: '刚上传',
+  analyzing: '识别中',
+  analyzed: '已识别',
+  generating: '写备注中',
+  done: '已完成',
+  failed: '失败',
+}
+export const notesStatusLabel = (s: string) => NOTES_STATUS_LABEL[s] ?? s
+
 /** 状态 → 状态胶囊类（浅底 + 深字） */
 export function statusClass(s: string): string {
   if (['done', 'ok', 'success'].includes(s)) return 'status status-success'
