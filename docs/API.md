@@ -118,6 +118,7 @@
 | POST | `/api/projects/{pid}/beautify/preview` | `{style_pack_id, mode:"img2img|redesign", preview_pages:3, page_nos:[1,2,4], size:"2K"}`；预览页数 1–3。返回 `{job_id, progress_url, page_count, message}` |
 | POST | `/api/projects/{pid}/beautify/continue` | `{style_pack_id, mode:"img2img|redesign", page_nos:[1,2,4], size:"2K"}`；必须已有完成图片版的 preview，原稿、风格、模式一致。返回 `{job_id, progress_url, remaining_pages}` |
 | POST | `/api/projects/{pid}/beautify/pages/{page_no}/regenerate` | **单页重生成（非破坏性）**：body `{style_pack_id?, mode?, size?}`（缺省沿用现场记录的风格与模式）→ `{job_id, progress_url, page_no, message}`，SSE 复用 `/api/jobs/{job_id}/stream`。只重写该页的 `beauty/pNN.png` 与 `text/pNN.json`，**其它页文件不重写、导出记录不被清空**；完成后按现有结果重新装配 `image.pptx` 并替换 `beautify_image` 导出记录，账本按该页号记一条 `action="beautify"`。前置条件：已有美化现场（phase 非空）、原稿指纹一致、该页在本次所选页面内、该项目没有别的美化作业在跑；不满足分别返回 400（如「请先生成美化预览，再重生成单页」「原稿已变更，请重新生成预览」「该页不在本次所选页面内」「该项目还有美化作业在跑，请等它结束」）。生成期间可 `POST /api/jobs/{job_id}/cancel` 取消，取消时**不发布**本次结果、不改 state |
+| POST | `/api/projects/{pid}/beautify/editable` | **按需**把已生成的美化图片版转成原生可编辑版（body `{style_pack_id?}`，缺省沿用现场风格）→ `{job_id, progress_url, message}`，SSE 复用 `/api/jobs/{job_id}/stream`（阶段 `codex`）。**生成图片时不再自动执行**：full 阶段只产出图片版，`codex.message` 为「尚未转换」，用户点「转文字可编辑版」才跑。前置条件：`phase=done`（图片版已生成）、原稿指纹一致、该项目没有别的美化作业在跑；不满足分别返回 400。成功后写 `exports.editable` 与 `codex`，并登记 `beautify_editable` 导出记录 |
 | GET | `/api/projects/{pid}/beautify` | `{phase, mode, page_count, page_nos, rendered, confirmed, content_saved, updated_at, pages:[{page_no,origin_url,beauty_url,beauty_ok,text_source,keep_material,preserved_pictures}], codex, exports:{editable?,image?}, cost:{total_cny,image_calls,failed_calls,price_configured,by_provider:[{provider,cny,count,failed}],note}, warnings}`；尚未运行时 phase 为空。`content_saved` 表示内容梳理是否**已保存并确认**（磁盘上存在与当前原稿匹配的 `content.json`）——恢复项目时用它判断第③步是否已完成；`confirmed` 仍只表示「已确认预览、正在做全量」。`keep_material` 表示该页勾选了「保留原图」：**勾了它的页在生图后会把原页里的图片元素按坐标原样贴回**（`preserved_pictures` 是实际贴回的图片张数），坐标来自源文件解析（pptx 读形状坐标、pdf 用 PyMuPDF），所以「原 PPT 里的图片不删、不换、不被重绘」是坐标级保证，不依赖模型自觉。`updated_at` 是美化现场最后更新时间，前端据此给结果图加 `?v=` 版本参数，避免单页重生成后看到旧缓存 |
 | GET | `/api/projects/{pid}/export?kind=beautify_editable` | 直接下载 PPTX（仅 full.pptx，预览阶段不提供可编辑版）；不存在返回 400 |
 | GET | `/api/projects/{pid}/export?kind=beautify_image` | 直接下载 image.pptx；不存在返回 400 |
@@ -127,7 +128,7 @@
 
 `cost` 只读汇总项目全部 `action="beautify"` 记账，包含失败调用；金额单位为元，`by_provider` 按供应商汇总。仅 `total_cny > 0` 时 `price_configured=true`、`note=""`；否则 `note="未配置生图单价，金额记 0，不代表免费"`。DB 无 `price:<provider>` 覆盖且 yaml 单价为 null 时金额记 0。无记录返回 `total_cny=0.0`、调用数与失败数为 0、`price_configured=false`、明细为空列表及同一提示。
 
-文件位于 `data/files/{pid}/beautify/`，state.json 持久保存阶段、原稿指纹、逐页成本与警告。全量复用预览页，不重复生图；确认后 phase=full，完成后 phase=done。未配置生图 key 时复制原图，beauty_ok=false、成本 0 并记录警告。Codex 超时、缺失或产物校验失败只保留图片版。新预览会清理旧美图与导出；同项目同时运行美化返回 400。
+文件位于 `data/files/{pid}/beautify/`，state.json 持久保存阶段、原稿指纹、逐页成本与警告。全量复用预览页，不重复生图；确认后 phase=full，完成后 phase=done。未配置生图 key 时复制原图，beauty_ok=false、成本 0 并记录警告。Codex 超时、缺失或产物校验失败只保留图片版（且**不再在生成图片时自动执行**，改由 `beautify/editable` 按需触发）。新预览会清理旧美图与导出；同项目同时运行美化返回 400。
 
 五步界面流程为：上传内容 → 页面确认 → 内容梳理 → 选择风格 → 生成结果。文件选择后由「开始 PPT 美化」上传并识别原页；「开始梳理内容」抽取原文；确认内容时保存 `content.json`。有已保存内容时，生成使用该页标题与正文：`keep_material=true` 以原页画面为输入做图生图（保留原页图片和版式），否则按确认文字重新设计；无文字时仍回落图生图。用户修改的文字会同时用于生图提示和最终可编辑重建。未准备内容的旧调用继续使用原有 `mode` 语义。`content_signature` 记录确认内容与保留设置指纹；内容变更后必须重新预览，禁止续跑或复用旧页。选页与已保存内容不一致时返回 400。
 

@@ -4,7 +4,7 @@
 
 ## 0. 一句话流程
 
-上传 PPTX/PDF → 前 1–3 页转图、逐页生图、合成 image.pptx 预览 → 用户确认 → 全部页转图、仅补未生图页 → Codex 重建全部页 → full.pptx 与全量 image.pptx。
+上传 PPTX/PDF → 前 1–3 页转图、逐页生图（并发上限 3）、合成 image.pptx 预览 → 用户确认 → 全部页转图、仅补未生图页 → 全量 image.pptx；**生成图片时不再自动调用 Codex**，用户在生成结果页点「转文字可编辑版」（POST /beautify/editable）才重建 full.pptx。
 
 ## 1. 铁律（沿用仓库约定，违反即不通过）
 
@@ -12,7 +12,7 @@
 2. **零 key 可跑**：没有生图 key 时，生图阶段降级为「原图直通」（`beauty/pNN.png` = 原图副本）并写 warning，流程不中断；Codex 不可用时如实报错并**只**产出图片版，**不伪造**可编辑版。
 3. **不伪造成功**：任一阶段失败都写进 `state.json` 的 `warnings`，导出件缺失就是缺失。
 4. 中文界面；数字等宽；配色走风格包 tokens。
-5. **预览只到生图与图片版合成**：不调用 Codex，不产出 preview.pptx，exports 不含 editable；仅 full 阶段调用 Codex。
+5. **预览只到生图与图片版合成**：不调用 Codex，不产出 preview.pptx，exports 不含 editable；full 阶段同样只产图片版，Codex 转可编辑改为**按需**触发（`POST /api/projects/{id}/beautify/editable`）。
 6. **两种生图模式**：img2img 以原页为参考；redesign 按该页标题、要点文字真源与风格令牌文生图，要求 16:9，不出现真源以外文字。缺文字真源写 warning 并退回 img2img；缺 key 复制原图、成本 0。
 7. **不改** `web/dist/`；**不提交密钥**；**不做 `git commit`**。
 

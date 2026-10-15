@@ -1408,6 +1408,17 @@ async def beautify_continue(pid: str, payload: Dict[str, Any] = Body(default={})
     return dict(job_id=job, progress_url=f'/api/jobs/{job}/stream', remaining_pages=remaining)
 
 
+@app.post('/api/projects/{pid}/beautify/editable')
+async def beautify_editable(pid: str, payload: Dict[str, Any] = Body(default={})) -> Dict[str, Any]:
+    """按需把已生成的美化图片版转成原生可编辑版（生成图片时不再自动执行）。"""
+    _beautify_project(pid)
+    try:
+        job = await pipeline.run_beautify_editable(pid, str(payload.get('style_pack_id') or ''))
+    except (ValueError, TypeError) as exc:
+        raise HTTPException(400, str(exc))
+    return dict(job_id=job, progress_url=f'/api/jobs/{job}/stream', message='已开始重建可编辑版')
+
+
 @app.get('/api/projects/{pid}/beautify')
 def beautify_status(pid: str) -> Dict[str, Any]:
     proj = _beautify_project(pid)
@@ -1421,7 +1432,9 @@ def beautify_status(pid: str) -> Dict[str, Any]:
         result['pages'].append(dict(page_no=page['page_no'],
             origin_url=pipeline._files_url(page['origin']) if os.path.isfile(page.get('origin', '')) else '',
             beauty_url=pipeline._files_url(page['beauty']) if os.path.isfile(page.get('beauty', '')) else '',
-            beauty_ok=page.get('beauty_ok', False), text_source=page.get('text_source', 'none')))
+            beauty_ok=page.get('beauty_ok', False), text_source=page.get('text_source', 'none'),
+            keep_material=bool(page.get('keep_material', False)),
+            preserved_pictures=int(page.get('preserved_pictures') or 0)))
     result['exports'] = {key: pipeline._files_url(path) for key, path in state.get('exports', {}).items() if os.path.isfile(path)}
     # 内容是否**已保存并确认**（磁盘上存在与当前原稿匹配的 content.json）——恢复流程时用它判断第③步是否已完成
     result['content_saved'] = bool(beautify.content_plan(pid, proj['source_path']))

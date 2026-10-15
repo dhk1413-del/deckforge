@@ -542,6 +542,10 @@ export interface BeautifyPage {
   beauty_url: string
   beauty_ok: boolean
   text_source: string
+  /** 该页是否勾选「保留原图」：勾了会按坐标把原页图片原样贴回 */
+  keep_material?: boolean
+  /** 实际贴回的图片张数（0 表示该页没有页内图片元素） */
+  preserved_pictures?: number
 }
 
 export interface BeautifyContentPage {

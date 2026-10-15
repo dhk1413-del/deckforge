@@ -213,13 +213,28 @@ def main():
             assert pipeline.JOBS[jid]['status'] != 'running', beautify.read_state('job')
             full = beautify.read_state('job')
             assert full['phase'] == 'done' and full['confirmed'] and len(full['pages']) == 4
-            assert convert.call_count == 1 and len(convert.call_args.args[1]) == 4
-            assert Path(convert.call_args.args[2]).name == 'full.pptx'
-            assert pipeline.JOBS[jid]['status'] == 'failed'
+            # 生成图片时**不再自动**转可编辑：没有 codex 阶段、没有 editable 产物、作业照样算成功
+            assert convert.call_count == 0
+            assert 'editable' not in full['exports']
+            assert full['codex'].get('ok') is False and '尚未转换' in full['codex'].get('message', '')
+            assert 'codex' not in [event.get('stage') for event in pipeline.job_queue(jid)._queue]
+            assert pipeline.JOBS[jid]['status'] == 'done'
             assert pipeline.JOBS[jid]['done'] == pipeline.JOBS[jid]['total'] == 1
-            assert 'codex' in [event.get('stage') for event in pipeline.job_queue(jid)._queue]
             assert edit.call_count == calls + 1
             assert len(Presentation(full['exports']['image']).slides) == 4
+            assert all(row['kind'] != 'beautify_editable' for row in records if 'kind' in row)
+            # 按需转可编辑：只有显式调用才跑 Codex；失败时如实报错且不伪造可编辑产物
+            jid = await pipeline.run_beautify_editable('job', 'style')
+            for _ in range(20000):
+                if pipeline.JOBS[jid]['status'] != 'running':
+                    break
+                await asyncio.sleep(0)
+            assert convert.call_count == 1 and len(convert.call_args.args[1]) == 4
+            assert Path(convert.call_args.args[2]).name == 'full.pptx'
+            assert 'codex' in [event.get('stage') for event in pipeline.job_queue(jid)._queue]
+            assert pipeline.JOBS[jid]['status'] == 'failed'
+            ondemand = beautify.read_state('job')
+            assert 'editable' not in ondemand['exports']
             assert all(row['kind'] != 'beautify_editable' for row in records if 'kind' in row)
         with patch('asyncio.to_thread', side_effect=offline_thread), \
                 patch.object(pipeline.db, 'q1', return_value=project), \
@@ -304,13 +319,23 @@ def main():
                 status = beautify.read_state('job')
                 assert status['mode'] == 'redesign'
                 assert all(page['cost_cny'] == 0 for page in status['pages']) and status['warnings']
-                assert convert.call_count == (0 if phase == 'preview' else 1)
+                assert convert.call_count == 0                    # 两个阶段都不再自动转可编辑
+                assert 'editable' not in status['exports']
                 if phase == 'preview':
-                    assert 'editable' not in status['exports'] and generate.call_count == 3
+                    assert generate.call_count == 3
                 else:
                     assert generate.call_count == 4
-                    assert len(Presentation(status['exports']['editable']).slides) == 4
                     assert len(Presentation(status['exports']['image']).slides) == 4
+                    # 按需转可编辑：显式调用才跑（这里注入一个必定成功的转换）
+                    jid2 = await pipeline.run_beautify_editable('job', 'style')
+                    for _ in range(20000):
+                        if pipeline.JOBS[jid2]['status'] != 'running':
+                            break
+                        await asyncio.sleep(0)
+                    assert pipeline.JOBS[jid2]['status'] == 'done'
+                    assert convert.call_count == 1
+                    ondemand = beautify.read_state('job')
+                    assert len(Presentation(ondemand['exports']['editable']).slides) == 4
         with patch('asyncio.to_thread', side_effect=offline_thread), \
                 patch.object(pipeline.db, 'q1', return_value=project), \
                 patch.object(pipeline.db, 'insert'), patch.object(pipeline.db, 'update'), \
@@ -355,7 +380,7 @@ def main():
             assert pipeline.JOBS[jid]['status'] == 'done'
             assert resumed['phase'] == 'done' and not resumed['cancelled']
             assert len(resumed['pages']) == 4 and edit.call_count == calls + 1
-            assert convert.call_count == 1
+            assert convert.call_count == 0        # 生成图片不自动转可编辑（恢复流程同理）
             # Preview can be cancelled before any image is produced, then resumed.
             with patch.object(beautify, 'render_origin', side_effect=cancel_after_render):
                 jid = await pipeline.run_beautify('job', 'style', 'preview')

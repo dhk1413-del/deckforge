@@ -152,8 +152,8 @@ async def emit(job_id: str, event: Dict[str, Any]) -> None:
     version = int(job.get("version") or 0) + 1
     pages = json.loads(job.get("pages_json") or "{}")
     event = dict(event, job_id=job_id, version=version, server_time=db.now())
-    if event.get("type") == "progress":
-        pages[str(event["page"])] = event
+    if event.get("type") == "progress" and event.get("page") is not None:
+        pages[str(event["page"])] = event      # 逐页事件才记账；整册作业（如按需转可编辑）没有 page
     _job_update(job_id, version=version, pages_json=json.dumps(pages, ensure_ascii=False))
     q = _QUEUES.get(job_id)
     if q is not None:
@@ -973,6 +973,75 @@ async def run_beautify_page(project_id: str, page_no: int, style_pack_id: str = 
     return job['id']
 
 
+async def run_beautify_editable(project_id: str, style_pack_id: str = '') -> str:
+    """按需把已生成的图片版转成原生可编辑版（Codex 重建）。
+
+    与 full 阶段的区别：**不在生成图片后自动执行**——用户先看到美化结果，需要时再点
+    「转文字可编辑版」；产物写 exports.editable，步骤用 SSE 的 codex 阶段汇报。
+    """
+    from . import beautify
+    proj = dict(db.q1('SELECT * FROM projects WHERE id=?', (project_id,)) or {})
+    src = proj.get('source_path') or ''
+    state = beautify.read_state(project_id) or {}
+    if state.get('phase') != 'done':
+        raise ValueError('请先生成全部页面的美化图，再转可编辑版')
+    if state.get('source') != [beautify.fingerprint(src)]:
+        raise ValueError('原稿已变更，请重新生成美化预览')
+    pages = [p for p in state.get('pages', []) if os.path.isfile(p.get('beauty') or '')]
+    if not pages:
+        raise ValueError('还没有可用的美化图')
+    pack = stylepacks.get_style_pack(style_pack_id or state.get('style_pack_id') or proj.get('style_pack_id') or '')
+    if not pack:
+        raise ValueError('请选择有效风格包')
+    if any(j['project_id'] == project_id and j['kind'] in ('beautify', 'beautify_page', 'beautify_editable')
+           and j['status'] in ('running', 'cancelling') for j in JOBS.values()):
+        raise ValueError('该项目还有美化作业在跑，请等它结束')
+    job = new_job(project_id, 'beautify_editable', 1)
+
+    async def worker():
+        try:
+            await emit(job['id'], dict(type='progress', total=1, stage='codex', status='queued', message='等待重建可编辑版'))
+            root = beautify.directory(project_id)
+            items = []
+            for page in pages:
+                text_path = root / 'text' / f"p{page['page_no']:02d}.json"
+                try:
+                    text = json.loads(text_path.read_text(encoding='utf-8'))
+                except (OSError, ValueError):
+                    text = await asyncio.to_thread(beautify.page_text_source, src, page['page_no'])
+                items.append(dict(page_no=page['page_no'], image=page['beauty'], text=text))
+            await emit(job['id'], dict(type='progress', total=1, stage='codex', status='running', message='正在重建原生可编辑版'))
+            editable = str(root / 'full.pptx')
+            converted = await asyncio.to_thread(beautify.convert_with_codex, project_id, items, editable,
+                                                pack.get('tokens') or {}, pack.get('name', ''))
+            if is_cancelled(job['id']):
+                _job_update(job['id'], status='cancelled', message='已取消')
+                await emit(job['id'], dict(type='cancelled', message='已取消重建'))
+                return
+            fresh = beautify.read_state(project_id) or dict(state)
+            fresh['codex'] = converted
+            fresh['warnings'] = list(fresh.get('warnings') or []) + list(converted.get('warnings') or [])
+            if converted.get('ok'):
+                fresh.setdefault('exports', {})['editable'] = editable
+                db.x('DELETE FROM exports WHERE project_id=? AND kind=?', (project_id, 'beautify_editable'))
+                db.insert('exports', dict(id=db.uid('e'), project_id=project_id, kind='beautify_editable', path=editable,
+                          pages=len(pages), editable_pages_json=json.dumps([p['page_no'] for p in pages]),
+                          passthrough_pages_json=json.dumps([]), size_bytes=os.path.getsize(editable), created_at=db.now()))
+            fresh['updated_at'] = db.now()
+            beautify.write_state(project_id, fresh)
+            _job_update(job['id'], status='done' if converted.get('ok') else 'failed', done=1,
+                        message=converted.get('message', ''))
+            await emit(job['id'], dict(type='done' if converted.get('ok') else 'error',
+                       file=_files_url(editable) if converted.get('ok') else '',
+                       message=converted.get('message', ''), warnings=fresh['warnings']))
+        except Exception as exc:                     # noqa: BLE001 —— 作业失败要落进 SSE，不能吞掉
+            _job_update(job['id'], status='failed', message=str(exc))
+            await emit(job['id'], dict(type='error', message=str(exc)))
+
+    asyncio.create_task(worker())
+    return job['id']
+
+
 async def run_beautify(project_id: str, style_pack_id: str, phase: str = 'preview',
                        mode: str = 'img2img', preview_pages: int = 3, size: str = '2K', page_nos=None) -> str:
     from . import beautify
@@ -1112,17 +1181,9 @@ async def run_beautify(project_id: str, style_pack_id: str, phase: str = 'previe
             converted = dict(ok=True, message='')
             editable = image_path
             if phase == 'full':
-                await progress('codex', message='正在重建原生可编辑版')
-                editable = str(root / 'full.pptx')
-                converted = await asyncio.to_thread(beautify.convert_with_codex, project_id, items, editable,
-                                                     pack.get('tokens') or {}, pack.get('name', ''))
-                if await cancelled():
-                    return
-                state['codex'] = converted
-                state['warnings'].extend(converted['warnings'])
-                if converted['ok']:
-                    state['exports']['editable'] = editable
-                    register('beautify_editable', editable, True)
+                # 转可编辑版改为**按需**：先生成图片、让用户看结果，需要时再点「转文字可编辑版」
+                # （POST /api/projects/{id}/beautify/editable），不在这一步自动跑 Codex。
+                state['codex'] = dict(ok=False, message='尚未转换：需要时可点「转文字可编辑版」按需转换')
             state['phase'] = 'preview' if phase == 'preview' else 'done'
             state['updated_at'] = db.now()
             beautify.write_state(project_id, state)

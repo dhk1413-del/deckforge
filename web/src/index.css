@@ -239,3 +239,8 @@
 .beautify-organize-guide span { color: var(--color-ink-sub); font-size: var(--text-body-sm); }
 @media (max-width: 720px) { .beautify-organize-guide { grid-template-columns: 1fr; } }
 @media (prefers-reduced-motion: reduce) { .beautify-organize .deck-spinner { animation-duration: 2.4s; } }
+
+/* ⑤生成结果：某页正在生成时的卡片（进度按真实完成页数，不写耗时承诺） */
+.beautify-generating { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; min-height: 320px; padding: 32px 24px; }
+.beautify-generating-bar { position: relative; width: 100%; max-width: 320px; height: 6px; margin: 10px 0 2px; overflow: hidden; border-radius: 999px; background: var(--color-border); }
+.beautify-generating-bar > i { display: block; height: 100%; border-radius: 999px; background: var(--color-primary); transition: width .3s ease; }

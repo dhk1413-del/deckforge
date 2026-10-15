@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { cancelJob, beautifyOrigin, beautifyContinue, beautifyPreview, beautifyRegeneratePage, codexEngine, createProject, getBeautify, getProject, getProjectJobs, uploadSource, prepareBeautifyContent, saveBeautifyContent, type ApiError } from '../api'
+import { cancelJob, beautifyOrigin, beautifyContinue, beautifyEditable, beautifyPreview, beautifyRegeneratePage, codexEngine, createProject, getBeautify, getProject, getProjectJobs, uploadSource, prepareBeautifyContent, saveBeautifyContent, type ApiError } from '../api'
 import { IconFolder } from './Icons'
 import { Dropzone } from './Dropzone'
 import { ProgressPanel } from './ProgressPanel'
@@ -103,6 +103,14 @@ export function BeautifyPanel({ packs, loadingPacks, onStepChange, resumeProject
     onDone: () => { void refresh(true) },
     onError: (message) => { setError(message); setBusy(false); void refresh(true, message) },
   })
+  /* 转可编辑版是按需作业（不随生成图片自动跑），单独跟一条 SSE */
+  const [editableJobId, setEditableJobId] = useState<string | null>(null)
+  const [editableBusy, setEditableBusy] = useState(false)
+  const editableStream = useJobStream(editableJobId, {
+    onDone: () => { setEditableBusy(false); toast.success('可编辑版已重建', '可在下方下载可编辑版 PPT'); void refresh(true) },
+    onError: (message) => { setEditableBusy(false); setError(message); void refresh(true, message) },
+    onCancelled: () => { setEditableBusy(false); void refresh(true) },
+  })
 
   useEffect(() => {
     let active = true
@@ -154,6 +162,13 @@ export function BeautifyPanel({ packs, loadingPacks, onStepChange, resumeProject
     if (stream.startedAt && stream.finishedAt)
       setElapsedMs((previous) => previous + stream.finishedAt! - stream.startedAt!)
   }, [stream.startedAt, stream.finishedAt])
+  /* 运行期间每秒走一格，用于显示真实已用时（不再显示恒为 0 的假数据） */
+  const [nowTick, setNowTick] = useState(() => Date.now())
+  useEffect(() => {
+    if (stream.status !== 'running') return
+    const timer = window.setInterval(() => setNowTick(Date.now()), 1000)
+    return () => window.clearInterval(timer)
+  }, [stream.status])
 
   async function refresh(finished = false, jobError: string | null = null) {
     if (!projectId) return
@@ -239,6 +254,18 @@ export function BeautifyPanel({ packs, loadingPacks, onStepChange, resumeProject
     finally { setContentStage(0); setBusy(false) }
   }
 
+  /** 按需重建原生可编辑版：生成图片时不自动执行，由用户点「转文字可编辑版」触发 */
+  async function convertEditable() {
+    if (!projectId || editableBusy) return
+    setEditableBusy(true); setError(null)
+    try {
+      const job = await beautifyEditable(projectId, { style_pack_id: packId })
+      if (!job.job_id) throw new Error('后端没有返回作业号')
+      setEditableJobId(job.job_id)
+      toast.info('已开始重建原生可编辑版', '这一步不会自动执行；完成后可下载可编辑版 PPT')
+    } catch (e) { setEditableBusy(false); setError(errorDetail(e)) }
+  }
+
   async function confirmContent() {
     if (!projectId || !content || busy) return
     setBusy(true); setError(null)
@@ -299,7 +326,17 @@ export function BeautifyPanel({ packs, loadingPacks, onStepChange, resumeProject
   const resultCurrentIndex = Math.min(resultIndex, Math.max(0, resultPages.length - 1))
   const resultCurrent = resultPages[resultCurrentIndex]
   const resultDoneCount = resultPages.filter(page => Boolean(page.beauty_url)).length
+  const generatingCurrent = Boolean(resultCurrent) && (
+    progress.byPage[resultCurrent.page_no]?.status === 'running'          // 该页正在生成/重生成（参考图口径）
+    || (!resultCurrent.beauty_url && stream.status === 'running')         // 整批跑着、这页还没有结果
+  )
+  const resultPercent = resultPages.length ? Math.round((100 * resultDoneCount) / resultPages.length) : 0
+  /** 正在生成的页（后端 Semaphore(3) 并发，逐页 SSE 事件是真实状态） */
+  const runningPages = Object.values(stream.byPage).filter(event => event.status === 'running')
+  const jobActive = stream.status === 'running' || runningPages.length > 0
+  const runningSeconds = stream.startedAt ? Math.max(0, Math.round(((stream.finishedAt ?? nowTick) - stream.startedAt) / 1000)) : null
   const resultPageState = (page: BeautifyStatus['pages'][number]) => {
+    if (progress.byPage[page.page_no]?.status === 'running') return { label: '生成中', cls: 'status-info' }
     if (page.beauty_url && page.beauty_ok) return { label: '已完成', cls: 'status-success' }
     if (page.beauty_url) return { label: '已用原图', cls: 'status-warn' }
     if (progress.byPage[page.page_no]?.status === 'running') return { label: '生成中', cls: 'status-info' }
@@ -494,7 +531,7 @@ export function BeautifyPanel({ packs, loadingPacks, onStepChange, resumeProject
       {step === 5 && jobId && (stream.status === 'running' || stream.status === 'error') && <ProgressPanel job={progress} stageLabel={result?.confirmed ? '全部页面生成进度' : '美化生成进度'} />}
       {step === 5 && <button type="button" className="link self-start" onClick={() => void refresh()}>刷新结果</button>}
       {step === 5 && result?.phase !== 'done' && jobId && <div className="panel-alt text-body-sm">
-        这是所选页面中前 <span className="num">3</span> 页的美化图预览（不足 <span className="num">3</span> 页时展示全部页）。此时还没有可编辑版，可编辑版将在确认后由 Codex 生成。
+        这是所选页面中前 <span className="num">3</span> 页的美化图预览（不足 <span className="num">3</span> 页时展示全部页）。可编辑版**不会自动生成**：确认后先生成图片版，需要时再点「转文字可编辑版」。
       </div>}
       {step === 5 && result && resultPages.length > 0 && <div className="deck-split">
         <PageRail label="结果页面列表" current={resultCurrentIndex} onSelect={(index) => { setResultIndex(index); setOverview(false) }}
@@ -519,9 +556,24 @@ export function BeautifyPanel({ packs, loadingPacks, onStepChange, resumeProject
           {overview ? <OverviewGrid current={resultCurrentIndex} onSelect={(index) => { setResultIndex(index); setOverview(false) }} emptyText="未生成"
             items={resultPages.map(page => ({ key: page.page_no, label: `查看第 ${page.page_no} 页结果`, image: withVersion(page.beauty_url, result.updated_at) }))} /> : <>
             <div className="deck-media-frame">
-              {resultCurrent.beauty_url
-                ? <button type="button" className="deck-media-open" title="点击放大查看" onClick={() => setLightbox(true)}><img src={withVersion(resultCurrent.beauty_url, result.updated_at)} alt={`第 ${resultCurrent.page_no} 页生成结果`} /></button>
-                : <p className="deck-slide-empty">这一页还没有生成结果{result.phase === 'preview' ? '：预览阶段只生成所选页中的前 3 页' : ''}。</p>}
+              {generatingCurrent
+                ? <div className="beautify-generating" role="status" aria-busy="true">
+                      <span className="deck-spinner" aria-hidden="true" />
+                      <p className="beautify-organize-title">正在生成美化结果…</p>
+                      <p className="beautify-organize-sub">正在按所选风格{resultCurrent.keep_material ? '保留原页图片与版式、只替换配色与质感' : '重新设计本页'}</p>
+                      <div className="beautify-generating-bar" role="progressbar" aria-valuemin={0} aria-valuemax={resultPages.length}
+                           aria-valuenow={resultDoneCount} aria-valuetext={`已完成 ${resultDoneCount} / ${resultPages.length} 页`}>
+                        <i style={{ width: `${resultPercent}%` }} />
+                      </div>
+                      <p className="beautify-organize-note">
+                        已完成 <span className="num">{resultDoneCount}</span> / <span className="num">{resultPages.length}</span> 页
+                        {runningPages.length > 1 && <> · <span className="num">{runningPages.length}</span> 页并发中</>}
+                        {runningSeconds !== null && <> · 已用时 <span className="num">{runningSeconds}</span> 秒</>}
+                      </p>
+                    </div>
+                : resultCurrent.beauty_url
+                  ? <button type="button" className="deck-media-open" title="点击放大查看" onClick={() => setLightbox(true)}><img src={withVersion(resultCurrent.beauty_url, result.updated_at)} alt={`第 ${resultCurrent.page_no} 页生成结果`} /></button>
+                  : <p className="deck-slide-empty">这一页还没有生成结果{result.phase === 'preview' ? '：预览阶段只生成所选页中的前 3 页' : ''}。</p>}
             </div>
             <div className="deck-slide-meta">
               <span>结果来源：{resultCurrent.beauty_ok ? '生图模型' : resultCurrent.beauty_url ? '生图失败，已用原图' : '尚未生成'}</span>
@@ -585,6 +637,7 @@ export function BeautifyPanel({ packs, loadingPacks, onStepChange, resumeProject
         <button type="button" className="btn btn-secondary rounded-full" disabled={busy} onClick={() => setStep(3)}>返回内容梳理</button>
         <button type="button" className="btn btn-primary rounded-full px-6" disabled={busy || !packId || !selected.length || !contentSaved} onClick={() => void startPreview()}>生成前 <span className="num">{Math.min(3, selected.length)}</span> 页预览</button>
       </ActionBar>}
+      {step === 5 && editableBusy && <div className="panel-alt text-body-sm" role="status">{editableStream.message || '正在重建原生可编辑版…'}</div>}
       {regenTarget !== null && <RegenerateDialog pageNo={regenTarget} onClose={() => setRegenTarget(null)} onConfirm={() => void regenerateCurrentPage()} />}
       {lightbox && result && resultPages.length > 0 && <PageLightbox
         pages={resultPages.map((page, index) => ({
@@ -598,11 +651,16 @@ export function BeautifyPanel({ packs, loadingPacks, onStepChange, resumeProject
         <PagerArrow dir="prev" disabled={busy || resultCurrentIndex === 0} onClick={() => { setResultIndex(resultCurrentIndex - 1); setOverview(false) }}/>
         <span className="num">{resultCurrent.page_no} / {resultPages.length}</span>
         <PagerArrow dir="next" disabled={busy || resultCurrentIndex >= resultPages.length - 1} onClick={() => { setResultIndex(resultCurrentIndex + 1); setOverview(false) }}/>
-        <span className="text-ink-sub">已完成 <span className="num">{resultDoneCount}</span> / <span className="num">{resultPages.length}</span></span>
-        <button type="button" className="btn btn-secondary rounded-full" disabled={busy} onClick={() => setStep(4)}>重新选择风格</button>
+        <span className="text-ink-sub">{jobActive
+          ? <>正在生成 <span className="num">{resultDoneCount}</span> / <span className="num">{resultPages.length}</span> 页{runningPages.length > 1 && <>（<span className="num">{runningPages.length}</span> 页并发）</>}</>
+          : <>已完成 <span className="num">{resultDoneCount}</span> / <span className="num">{resultPages.length}</span> 页</>}</span>
+        <button type="button" className="btn btn-secondary rounded-full" disabled={busy || jobActive} onClick={() => setStep(4)}>重新选择风格</button>
         {result.phase === 'preview' && <button type="button" className="btn btn-primary rounded-full" disabled={busy || (!result.exports.image && stream.status !== 'cancelled')} onClick={() => void continueAll()}>{busy ? '正在生成…' : '确认预览，生成全部所选页面'}</button>}
-        {result.exports.editable && <a className="btn btn-secondary rounded-full" href={result.exports.editable} download>下载可编辑版 PPT</a>}
-        {result.exports.image && <a className={cn('btn rounded-full', result.phase === 'preview' ? 'btn-secondary' : 'btn-primary')} href={result.exports.image} download>下载图片集 PPT</a>}
+        {result.phase === 'done' && <button type="button" className="btn btn-secondary rounded-full" disabled={busy || editableBusy}
+          title={result.exports.editable ? '重新重建一次可编辑版' : '按需把图片版转成原生可编辑版（生成图片时不会自动执行）'}
+          onClick={() => void convertEditable()}>{editableBusy ? '正在重建…' : result.exports.editable ? '重新转可编辑版' : '转文字可编辑版'}</button>}
+        {result.exports.editable && <a className="btn btn-primary rounded-full" href={result.exports.editable} download>下载可编辑版 PPT</a>}
+        {result.exports.image && <a className={cn('btn rounded-full', result.exports.editable ? 'btn-secondary' : result.phase === 'preview' ? 'btn-secondary' : 'btn-primary')} href={result.exports.image} download>下载图片集 PPT</a>}
       </ActionBar>}
       {step === 5 && stream.status === 'error' && <button type="button" className="btn btn-secondary self-start" onClick={() => { setStep(4); setResult(null); setError(null); setJobId(null) }}>返回并重新生成预览</button>}
     </div>

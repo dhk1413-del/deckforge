@@ -375,6 +375,10 @@ export const beautifyPreview = (id: string, body: { style_pack_id: string; mode:
 export const beautifyContinue = (id: string, body: { style_pack_id: string; mode: 'img2img' | 'redesign'; size?: string; page_nos?: number[] }) =>
   request<BeautifyJobResponse>(`/projects/${id}/beautify/continue`, jsonInit('POST', body))
 
+/** 按需把已生成的美化图片版转成原生可编辑版（生成图片时**不再自动执行**） */
+export const beautifyEditable = (id: string, body: { style_pack_id?: string } = {}) =>
+  request<BeautifyJobResponse>(`/projects/${id}/beautify/editable`, jsonInit('POST', body))
+
 /** 只重生成指定一页（非破坏性：其它页的美图与导出不动） */
 export const beautifyRegeneratePage = (id: string, pageNo: number, body: { style_pack_id?: string; mode?: 'img2img' | 'redesign'; size?: string }) =>
   request<BeautifyJobResponse>(`/projects/${id}/beautify/pages/${pageNo}/regenerate`, jsonInit('POST', body))
