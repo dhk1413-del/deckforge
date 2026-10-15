@@ -25,7 +25,7 @@ function CoverLightbox({ pack, onClose }: { pack: StylePack; onClose: () => void
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" ref={modalRef} tabIndex={-1}
            role="dialog" aria-modal="true" aria-label={`${pack.name} 没有可预览的图`} onClick={onClose}>
-        <div className="card flex max-w-md flex-col gap-3" onClick={(e) => e.stopPropagation()}>
+        <div className="card flex max-w-[28rem] flex-col gap-3" onClick={(e) => e.stopPropagation()}>
           <p className="m-0 text-body-sm">该风格没有可预览的图：style.md 既没有声明配色示意，也没有预览图。</p>
           <button type="button" className="btn btn-secondary self-end" onClick={onClose}>关闭</button>
         </div>

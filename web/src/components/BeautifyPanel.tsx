@@ -36,7 +36,7 @@ function RegenerateDialog({ pageNo, onClose, onConfirm }: { pageNo: number; onCl
   const modalRef = useModalFocus(onClose)
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" ref={modalRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label={`重新生成第 ${pageNo} 页`} onClick={onClose}>
-      <div className="card flex w-full max-w-md flex-col gap-3" onClick={(event) => event.stopPropagation()}>
+      <div className="card flex w-full max-w-[28rem] flex-col gap-3" onClick={(event) => event.stopPropagation()}>
         <h3 className="m-0 text-h3">重新生成第 <span className="num">{pageNo}</span> 页</h3>
         <p className="m-0 text-body-sm text-ink-sub">
           会调用已配置的生图模型，费用按设置与用量账本记录；<strong>其它页的生成结果与导出不会被改动</strong>，完成后会重新装配图片版。生成期间可以「取消生成」。

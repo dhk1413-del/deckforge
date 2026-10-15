@@ -33,6 +33,22 @@
   --spacing-md: 16px;
   --spacing-lg: 24px;
   --spacing-xl: 32px;
+
+  /* 容器宽度尺度（Tailwind 默认值）。注意 Tailwind v4 解析 max-w-<名> 的命名空间顺序是
+     --max-width → --spacing → --container：只要主题里存在同名的 --spacing-md / --spacing-xl，
+     max-w-md / max-w-xl 就永远取到 16px / 32px（弹窗会被压成一列竖排文字）。
+     因此这两个尺寸在代码里一律用任意值 max-w-[28rem] / max-w-[36rem]；其余名字（2xl 等）仍可正常用。 */
+  --container-xs: 20rem;
+  --container-sm: 24rem;
+  --container-md: 28rem;
+  --container-lg: 32rem;
+  --container-xl: 36rem;
+  --container-2xl: 42rem;
+  --container-3xl: 48rem;
+  --container-4xl: 56rem;
+  --container-5xl: 64rem;
+  --container-6xl: 72rem;
+  --container-7xl: 80rem;
   --spacing-page-margin: 24px;
   --radius-sm: 8px;
   --radius-md: 12px;

@@ -63,7 +63,7 @@ function RenameDialog({ project, onClose, onSaved }: { project: Project; onClose
   }
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" ref={modalRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="重命名项目" onClick={onClose}>
-      <div className="card flex w-full max-w-md flex-col gap-3" onClick={(e) => e.stopPropagation()}>
+      <div className="card flex w-full max-w-[28rem] flex-col gap-3" onClick={(e) => e.stopPropagation()}>
         <h3 className="m-0 text-h3">重命名项目</h3>
         <label className="flex flex-col gap-1 text-body-sm">项目名称
           <input className="input" value={title} autoFocus onChange={(e) => setTitle(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') void save() }} />
@@ -102,7 +102,7 @@ function DeleteDialog({ project, onClose, onDeleted }: { project: Project; onClo
   }
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" ref={modalRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="删除项目" onClick={onClose}>
-      <div className="card flex w-full max-w-md flex-col gap-3" onClick={(e) => e.stopPropagation()}>
+      <div className="card flex w-full max-w-[28rem] flex-col gap-3" onClick={(e) => e.stopPropagation()}>
         <h3 className="m-0 text-h3">删除项目</h3>
         <p className="m-0 text-body-sm">确定删除「{project.title || '(无标题)'}」？<strong>此操作不可撤销。</strong></p>
         <ul className="m-0 flex list-disc flex-col gap-1 pl-5 text-body-sm text-ink-sub">

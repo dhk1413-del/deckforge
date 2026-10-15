@@ -61,7 +61,7 @@ export function ExportPanel({projectId,slides}:{projectId:string;slides:Slide[]}
 function ExportConfirmation({plan,onClose,onConfirm}:{plan:ExportPlan;onClose:()=>void;onConfirm:()=>void}) {
   const ref=useModalFocus(onClose)
   return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
-    <div ref={ref} tabIndex={-1} role="dialog" aria-modal="true" aria-label="确认导出版本快照" className="card max-h-[85vh] w-full max-w-xl overflow-auto" onClick={e=>e.stopPropagation()}>
+    <div ref={ref} tabIndex={-1} role="dialog" aria-modal="true" aria-label="确认导出版本快照" className="card max-h-[85vh] w-full max-w-[36rem] overflow-auto" onClick={e=>e.stopPropagation()}>
       <h2>确认导出版本快照</h2><p>{plan.note}</p>
       <ul>{plan.included.map(p=><li key={p.slide_id} className="num">第 {p.page_no} 页 · 序号 {p.display_order} · V{p.version_number}{p.content_stale || p.config_stale?' · 已过期':''}</li>)}</ul>
       {plan.excluded.length>0 && <><p>排除页面：</p><ul>{plan.excluded.map(p=><li key={p.slide_id} className="num">第 {p.page_no} 页：{p.reason}</li>)}</ul></>}
