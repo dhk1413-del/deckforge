@@ -1,21 +1,17 @@
 /** 风格构建页（#/style-builder）：上传 PPTX / PDF 模板或风格参考图 → 自动解析设计规范 → 预览 → 保存成新风格包。 */
 import { StyleBuilderPanel } from '../components/StyleBuilderPanel'
+import { IconChevronRight } from '../components/Icons'
 import { Link, useNavigate } from '../router'
 
 export function StyleBuilderPage() {
   const navigate = useNavigate()
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-end gap-3">
-        <div>
-          <h1 className="m-0 text-h1 font-semibold">风格构建</h1>
-          <p className="m-0 mt-1 text-ink-sub">
-            上传 <span className="num">.pptx / .pdf / .png / .jpg / .jpeg / .webp</span> 参考文件（图片可多张），自动解析出配色、字体层级、
-            版式与画面语言，生成一套新的风格规范并写入风格库。
-          </p>
-        </div>
+      <div className="flex flex-wrap items-center gap-3">
+        <h1 className="m-0 text-h1 font-semibold">风格构建</h1>
         <span className="flex-1" />
-        <Link to="/styles" className="btn">
+        <Link to="/styles" className="btn btn-secondary rounded-full! gap-1.5! shadow-[0_1px_2px_rgba(16,40,90,.06)] transition-transform hover:-translate-x-0.5" title="回到风格库">
+          <IconChevronRight className="h-4 w-4 rotate-180" aria-hidden="true" />
           返回风格库
         </Link>
       </div>
