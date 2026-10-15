@@ -1,4 +1,5 @@
-/** 设置：生图供应商 key（密码型 + 掩码回显）+ 连通性测试 + 网络模式 + 文本模型 */
+/** 设置：生图（左）/ 文本与视觉（右）左右布局；key 密码型输入 + 掩码回显 + 连通性测试。
+ *  网络模式模块按用户要求从界面移除（后端 PUT /api/settings 的 network 字段仍在，需要时可恢复 UI）。 */
 import { useEffect, useState } from 'react'
 import { getSettings, putSettings, testProvider, type ApiError } from '../api'
 import { useAsync } from '../hooks/useAsync'
@@ -7,17 +8,10 @@ import { IconChevronRight } from '../components/Icons'
 import { EmptyState, ErrorState, Loading, Notice } from '../components/StateBlock'
 import { useToast } from '../components/Toast'
 import type {
-  NetworkMode,
   ProviderSetting,
   SettingsResponse,
   SettingsTestResponse,
 } from '../types'
-
-const NETWORK_MODES: Array<{ key: NetworkMode; label: string; desc: string }> = [
-  { key: 'http_proxy', label: 'HTTP 代理', desc: '走本机 Clash 等代理（推荐，境外供应商必需）' },
-  { key: 'tun', label: 'TUN 模式', desc: '虚拟网卡全局路由，由代理软件接管流量' },
-  { key: 'none', label: '直连', desc: '不走代理：仅国产供应商 / 局域网可用' },
-]
 
 /** 已保存 key 的验证结论只对当前掩码有效；输入新 key 或保存后均不能沿用。 */
 function useKeyVerification(keyMasked: string, keySet: boolean, pendingKey: string) {
@@ -290,10 +284,8 @@ export function SettingsPage() {
   const [textKey, setTextKey] = useState('')
   const [textModel, setTextModel] = useState('')
   const [savingText, setSavingText] = useState(false)
-  const [savingNet, setSavingNet] = useState(false)
   const [testingText, setTestingText] = useState(false)
   const [textTest, setTextTest] = useState<SettingsTestResponse | null>(null)
-  const [netError, setNetError] = useState<ApiError | null>(null)
 
   // 服务器数据回来后初始化本地草稿（保存后用返回值覆盖）
   useEffect(() => {
@@ -325,21 +317,6 @@ export function SettingsPage() {
   if (!draft) return null
 
   const imageProviders = draft.providers ?? []
-
-  async function saveNetwork(mode: NetworkMode) {
-    setSavingNet(true)
-    setNetError(null)
-    try {
-      const next = await putSettings({ network: { mode } })
-      setDraft(next)
-      toast.success(`网络模式已切换为 ${mode} —— 已热加载，无需重启`)
-    } catch (e) {
-      setNetError(e as ApiError)
-      toast.error('切换网络模式失败', (e as ApiError).detail)
-    } finally {
-      setSavingNet(false)
-    }
-  }
 
   async function saveText() {
     setSavingText(true)
@@ -380,9 +357,6 @@ export function SettingsPage() {
       <div className="flex flex-wrap items-end gap-3">
         <div>
           <h1 className="m-0 text-h1 font-semibold">设置</h1>
-          <p className="m-0 mt-1 text-ink-sub">
-            保存即热加载（PUT /api/settings），<strong>不需要重启后端</strong>；key 只回显掩码。
-          </p>
         </div>
         <span className="flex-1" />
         <button
@@ -395,14 +369,9 @@ export function SettingsPage() {
         </button>
       </div>
 
-      <Notice kind="info">
-        零 key 也能跑通全套流程：不填任何 key 时「开始生成」走本地兜底渲染（Pillow，费用 0 元）。
-        填了 key 立即生效，无需改代码。
-      </Notice>
-
-      {/* 宽屏左右分栏：左侧供应商列表，右侧其余配置 —— 让整页尽量落在一屏内 */}
-      <div className="band grid grid-cols-1 gap-3 xl:grid-cols-2">
-        <section className="flex flex-col gap-2">
+      {/* 生图（左）/ 文本与视觉（右）左右布局 */}
+      <div className="band grid grid-cols-1 gap-3 lg:grid-cols-2">
+        <section className="flex min-w-0 flex-col gap-2">
           <h2 className="m-0 text-h3 font-semibold">生图供应商（点左侧箭头展开改 key）</h2>
           {imageProviders.length === 0 ? (
             <div className="card">
@@ -422,7 +391,7 @@ export function SettingsPage() {
           )}
         </section>
 
-        <section className="flex flex-col gap-3">
+        <section className="flex min-w-0 flex-col gap-3">
       <h2 className="m-0 text-h3 font-semibold">文本模型（内容梳理）</h2>
       <div className="card p-4!">
         <div className="flex flex-wrap items-center gap-2">
@@ -495,47 +464,6 @@ export function SettingsPage() {
       </Notice>
       {draft.vision ? <ProviderCard provider={draft.vision} onSaved={setDraft} showPrice={false} /> : null}
 
-      <h2 className="m-0 text-h3 font-semibold">网络模式</h2>
-      <div className="card p-4!">
-        <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
-          {NETWORK_MODES.map((m) => {
-            const active = draft.network?.mode === m.key
-            return (
-              <button
-                key={m.key}
-                type="button"
-                className={cn(
-                  'panel-alt card-interactive border border-border-strong text-left transition-colors',
-                  active && 'border-2 border-accent',
-                )}
-                aria-pressed={active}
-                disabled={savingNet}
-                onClick={() => saveNetwork(m.key)}
-                title={active ? '当前模式' : `切换为 ${m.label}`}
-              >
-                <div className="flex items-center gap-2">
-                  <span className={cn('status', active ? 'status-success' : 'status-info')}>
-                    {active ? '当前' : '切换'}
-                  </span>
-                  <span className="font-semibold">{m.label}</span>
-                  <span className="num text-caption text-ink-sub">{m.key}</span>
-                </div>
-                <p className="m-0 mt-1 text-caption text-ink-sub">{m.desc}</p>
-              </button>
-            )
-          })}
-        </div>
-        {draft.network?.http_proxy && (
-          <p className="mt-3 mb-0 text-caption text-ink-sub">
-            代理地址（来自 /api/health）：<span className="num">{draft.network.http_proxy}</span>
-          </p>
-        )}
-        {netError && (
-          <div className="mt-3">
-            <ErrorState compact error={netError} onRetry={() => saveNetwork(draft.network?.mode ?? 'none')} title="切换失败" />
-          </div>
-        )}
-        </div>
         </section>
       </div>
     </div>
