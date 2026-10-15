@@ -1,4 +1,4 @@
-# DeckForge MVP 后端依赖（Python 3.9 兼容）
+# SlideCraft MVP 后端依赖（Python 3.9 兼容）
 fastapi>=0.110
 uvicorn>=0.27
 httpx>=0.27

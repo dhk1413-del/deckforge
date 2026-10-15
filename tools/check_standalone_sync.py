@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""门禁检查：deckforge-standalone.html 必须与 ui-design/app.css 的令牌集合同步。
+"""门禁检查：slidecraft-standalone.html 必须与 ui-design/app.css 的令牌集合同步。
 
 背景：standalone 单文件版由 tools/build_standalone.py 从 ui-design/app.css 内联生成，
 会随设计令牌一起漂移（曾停在旧版本、无人察觉）。本检查让「忘了重新生成」在门禁里
@@ -14,14 +14,14 @@ import sys
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 APP_CSS = os.path.join(ROOT, "ui-design", "app.css")
-STANDALONE = os.path.join(ROOT, "deckforge-standalone.html")
+STANDALONE = os.path.join(ROOT, "slidecraft-standalone.html")
 # 只比对设计令牌（CSS 自定义属性），不比对文案，避免误报
 PATTERN = r'--((?:color|radius|spacing|text|shadow|font)-[a-z0-9-]+)'
 
 
 def main() -> int:
     if not os.path.exists(STANDALONE):
-        print("  ✗ 缺少 deckforge-standalone.html；运行 python tools/build_standalone.py 生成")
+        print("  ✗ 缺少 slidecraft-standalone.html；运行 python tools/build_standalone.py 生成")
         return 1
     if not os.path.exists(APP_CSS):
         print("  ✗ 缺少 ui-design/app.css")

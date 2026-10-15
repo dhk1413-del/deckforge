@@ -36,7 +36,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             className="brand-mark inline-block h-7 w-7 rounded-md"
             aria-hidden="true"
           />
-          <span className="text-h3 font-semibold text-ink">DeckForge</span>
+          <span className="text-h3 font-semibold text-ink">SlideCraft</span>
         </Link>
 
         <nav className="mt-4 flex flex-col gap-1" aria-label="主导航">

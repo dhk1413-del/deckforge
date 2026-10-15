@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# DeckForge 启动脚本（本机 :8640）
+# SlideCraft 启动脚本（本机 :8640）
 # 用法：bash server/run.sh          # 前台
 #       bash server/run.sh --reload # 开发热重载
 set -e
@@ -32,5 +32,5 @@ CONFIG_PORT="$(grep -hE '^DECKFORGE_PORT=' .env config/.env 2>/dev/null | tail -
 PORT="${DECKFORGE_PORT:-${CONFIG_PORT:-8640}}"
 HOST="${DECKFORGE_HOST:-127.0.0.1}"
 
-echo "== DeckForge 启动：http://${HOST}:${PORT} =="
+echo "== SlideCraft 启动：http://${HOST}:${PORT} =="
 exec "$VENV/bin/python" -m uvicorn app.main:app --host "$HOST" --port "$PORT" "$@"

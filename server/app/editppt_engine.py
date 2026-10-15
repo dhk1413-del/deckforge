@@ -141,7 +141,7 @@ def build_hints(blocks: List[Dict[str, Any]], ink_lines: List[Dict[str, Any]],
                           font_pt=b.get("font_size_pt") or 0,
                           size_group=nearest_group(box)))
     return dict(source=dict(width=img_w, height=img_h),
-                provider="deckforge-vision（等价于 PaddleOCR-VL 的内容感知提示）",
+                provider="slidecraft-vision（等价于 PaddleOCR-VL 的内容感知提示）",
                 note="文字内容必须与本文件一致，不得改写/编造；box_px 为源图像素；"
                      "同级 size_group 的文本请使用同一字号。",
                 lines=lines)

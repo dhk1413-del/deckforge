@@ -1,10 +1,10 @@
 # UI v2 三处修正（给 Codex CLI 的提示词）
 
-> 用法：`cd /path/to/deckforge && codex exec --skip-git-repo-check --sandbox workspace-write -C /path/to/deckforge -- "$(cat docs/codex-ui-v2-fix-prompt.md)"`
+> 用法：`cd /path/to/slidecraft && codex exec --skip-git-repo-check --sandbox workspace-write -C /path/to/slidecraft -- "$(cat docs/codex-ui-v2-fix-prompt.md)"`
 
 ---PROMPT---
 
-你在 `/path/to/deckforge`（DeckForge，React 19 + TS + Vite + Tailwind v4，设计令牌在 `ui-design/`，令牌的生成器在 `tools/`）。UI v2 已上线，用户实机复核后提了三条，**只做这三条，不要顺手改别的**。
+你在 `/path/to/slidecraft`（SlideCraft，React 19 + TS + Vite + Tailwind v4，设计令牌在 `ui-design/`，令牌的生成器在 `tools/`）。UI v2 已上线，用户实机复核后提了三条，**只做这三条，不要顺手改别的**。
 
 ## 修正 1：首页 hero 的装饰图形压到了内容（要重新排布）
 现状：`tools/gen_ui_css.py` 模板生成的 `.hero::after` 是一个 330×330 的圆形光斑（`right:-70px; top:-90px`），而 `.hero-content` 没有任何宽度约束 → 右上角的状态行与右下角的「快捷入口」卡（`.quick{margin-top:-30px}`，压在 hero 下沿）都压在这块装饰上。
@@ -50,7 +50,7 @@
 
 ## 自检（必须真跑）
 ```bash
-cd /path/to/deckforge
+cd /path/to/slidecraft
 .venv/bin/python tools/gen_ui_css.py && .venv/bin/python tools/gen_ui_preview.py
 npm --prefix web run typecheck && npm --prefix web run build
 make lint

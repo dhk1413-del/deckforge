@@ -1,4 +1,4 @@
-/* DeckForge 入口样式：顺序不可改（tailwind 基础 → 令牌主题 → 组件类） */
+/* SlideCraft 入口样式：顺序不可改（tailwind 基础 → 令牌主题 → 组件类） */
 @import "tailwindcss";
 @import "../../ui-design/tailwind.theme.css";
 @import "../../ui-design/app.css";

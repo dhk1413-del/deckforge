@@ -37,13 +37,13 @@
   ✅ web build              ✓ built in 944ms
 
 15 项检查：15 通过 / 0 失败
-.../path/to/deckforge/server/app/stylepacks.py:45: ResourceWarning: unclosed file <_io.TextIOWrapper name='/path/to/deckforge/style-packs/layouts/cards_4.md' mode='r' encoding='utf-8'>
+.../path/to/slidecraft/server/app/stylepacks.py:45: ResourceWarning: unclosed file <_io.TextIOWrapper name='/path/to/slidecraft/style-packs/layouts/cards_4.md' mode='r' encoding='utf-8'>
   return io.open(path, encoding="utf-8").read() if os.path.exists(path) else ""
 ResourceWarning: Enable tracemalloc to get the object allocation traceback
-/path/to/deckforge/server/app/stylepacks.py:45: ResourceWarning: unclosed file <_io.TextIOWrapper name='/path/to/deckforge/style-packs/styles/tech-deepblue/style.md' mode='r' encoding='utf-8'>
+/path/to/slidecraft/server/app/stylepacks.py:45: ResourceWarning: unclosed file <_io.TextIOWrapper name='/path/to/slidecraft/style-packs/styles/tech-deepblue/style.md' mode='r' encoding='utf-8'>
   return io.open(path, encoding="utf-8").read() if os.path.exists(path) else ""
 ResourceWarning: Enable tracemalloc to get the object allocation traceback
-/path/to/deckforge/server/app/stylepacks.py:45: ResourceWarning: unclosed file <_io.TextIOWrapper name='/path/to/deckforge/style-packs/styles/tech-deepblue/prompt.md' mode='r' encoding='utf-8'>
+/path/to/slidecraft/server/app/stylepacks.py:45: ResourceWarning: unclosed file <_io.TextIOWrapper name='/path/to/slidecraft/style-packs/styles/tech-deepblue/prompt.md' mode='r' encoding='utf-8'>
   return io.open(path, encoding="utf-8").read() if os.path.exists(path) else ""
 ResourceWarning: Enable tracemalloc to get the object allocation traceback
 .
@@ -51,10 +51,10 @@ ResourceWarning: Enable tracemalloc to get the object allocation traceback
 Ran 4 tests in 0.193s
 
 OK
-/path/to/deckforge/server/app/stylepacks.py:45: ResourceWarning: unclosed file <_io.TextIOWrapper name='/path/to/deckforge/style-packs/styles/tech-deepblue/style.md' mode='r' encoding='utf-8'>
+/path/to/slidecraft/server/app/stylepacks.py:45: ResourceWarning: unclosed file <_io.TextIOWrapper name='/path/to/slidecraft/style-packs/styles/tech-deepblue/style.md' mode='r' encoding='utf-8'>
   return io.open(path, encoding="utf-8").read() if os.path.exists(path) else ""
 ResourceWarning: Enable tracemalloc to get the object allocation traceback
-/path/to/deckforge/server/app/stylepacks.py:45: ResourceWarning: unclosed file <_io.TextIOWrapper name='/path/to/deckforge/style-packs/styles/tech-deepblue/prompt.md' mode='r' encoding='utf-8'>
+/path/to/slidecraft/server/app/stylepacks.py:45: ResourceWarning: unclosed file <_io.TextIOWrapper name='/path/to/slidecraft/style-packs/styles/tech-deepblue/prompt.md' mode='r' encoding='utf-8'>
   return io.open(path, encoding="utf-8").read() if os.path.exists(path) else ""
 ResourceWarning: Enable tracemalloc to get the object allocation traceback
 ...

@@ -1,5 +1,5 @@
 /**
- * DeckForge API 客户端 —— 全部请求走 /api（标准部署由 8641 后端托管；开发模式由 Vite proxy 转 127.0.0.1:8640）
+ * SlideCraft API 客户端 —— 全部请求走 /api（标准部署由 8641 后端托管；开发模式由 Vite proxy 转 127.0.0.1:8640）
  * 错误统一抛 ApiError（含后端 {detail} 中文信息 + 网络层可读信息）。
  */
 import { BACKEND_HINT } from './lib/format'

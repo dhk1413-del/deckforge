@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# DeckForge 局域网访问启动器 —— 绑定 0.0.0.0（本机 + 同网段其它设备都能开）
+# SlideCraft 局域网访问启动器 —— 绑定 0.0.0.0（本机 + 同网段其它设备都能开）
 #
 # 与 start-lan.sh 的唯一区别：把默认监听地址从 127.0.0.1 改成 0.0.0.0。
 # 其余行为完全一致（脱离终端常驻、端口占用检查、健康检查、日志到 data/logs/server.log）。
@@ -23,7 +23,7 @@ export PORT="${PORT:-8641}"
 ADDRS="$(hostname -I 2>/dev/null | tr ' ' '\n' | grep -E '^[0-9]+\.' \
          | grep -vE '^(127|169\.254)\.' | grep -vE '^172\.(1[6-9]|2[0-9]|3[01])\.' \
          | sed "s|^|http://|; s|$|:${PORT}|" | tr '\n' ' ')"
-echo "== DeckForge 局域网模式：HOST=${HOST} PORT=${PORT} =="
+echo "== SlideCraft 局域网模式：HOST=${HOST} PORT=${PORT} =="
 echo "   本机：http://127.0.0.1:${PORT}"
 [ -n "$ADDRS" ] && echo "   局域网：${ADDRS}"
 echo "   （其它设备需已放行防火墙入站 TCP ${PORT}；改网络后 IP 可能变化）"

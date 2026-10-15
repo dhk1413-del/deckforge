@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""构建单文件自包含应用：deckforge-standalone.html
+"""构建单文件自包含应用：slidecraft-standalone.html
 
 设计要点：
 · 令牌来源 = ui-design/app.css（不复制一份，直接内联，避免与规范漂移）
@@ -16,7 +16,7 @@ import re
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 UI = os.path.join(ROOT, "ui-design")
 SP = os.path.join(ROOT, "style-packs")
-OUT = os.path.join(ROOT, "deckforge-standalone.html")
+OUT = os.path.join(ROOT, "slidecraft-standalone.html")
 
 META = {
     "tech-deepblue": dict(name="深蓝光感科技发布风", category="科技/深色", badge="热门",
@@ -409,7 +409,7 @@ JS += r"""
 const NAV = [['#/', '生成向导'], ['#/projects', '项目'], ['#/styles', '风格'], ['#/usage', '用量'], ['#/settings', '设置']];
 function shell(inner, active) {
   return '<div class="app">' +
-    '<aside class="side"><div class="brand">DeckForge<span class="tag" style="margin-left:8px">本地版</span></div>' +
+    '<aside class="side"><div class="brand">SlideCraft<span class="tag" style="margin-left:8px">本地版</span></div>' +
     '<nav>' + NAV.map(([h, t]) => '<a href="' + h + '" class="' + (h === active ? 'on' : '') + '">' + t + '</a>').join('') + '</nav>' +
     '<div class="side-foot"><div class="metric-label">生图能力</div><div id="capLine" class="num">检测中…</div>' +
     '<div class="metric-label" style="margin-top:8px">本项目累计</div><div class="num" id="capCost">¥0.00</div></div></aside>' +
@@ -788,7 +788,7 @@ HTML = """<!DOCTYPE html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>DeckForge · AI 生成整套 PPT（本地单文件版）</title>
+<title>SlideCraft · AI 生成整套 PPT（本地单文件版）</title>
 <style>
 __CSS__
 /* —— 应用外壳（本文件特有；组件样式全部来自 ui-design/app.css 令牌） —— */

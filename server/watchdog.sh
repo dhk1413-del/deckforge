@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# DeckForge 看门狗：每 60s 探活一次，挂了就用**同一个 HOST/PORT**重新拉起（脱离终端常驻）。
+# SlideCraft 看门狗：每 60s 探活一次，挂了就用**同一个 HOST/PORT**重新拉起（脱离终端常驻）。
 # 日志：data/logs/watchdog.log
 # 启动：cd <仓库根> && nohup setsid bash server/watchdog.sh >/dev/null 2>&1 &
 # 停止：pkill -f 'server/watchdog.sh'

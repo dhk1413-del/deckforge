@@ -1,9 +1,9 @@
 {
-  "name": "deckforge-web",
+  "name": "slidecraft-web",
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "DeckForge 前端 MVP —— 自托管「AI 生成整套 PPT」工作台",
+  "description": "SlideCraft 前端 MVP —— 自托管「AI 生成整套 PPT」工作台",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit -p tsconfig.json && vite build",

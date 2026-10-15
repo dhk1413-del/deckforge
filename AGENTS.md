@@ -1,4 +1,4 @@
-# DeckForge 工作台 —— 仓库约定（coding agent 一律按这份来）
+# SlideCraft 工作台 —— 仓库约定（coding agent 一律按这份来）
 
 ## 是什么
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""DeckForge MVP 端到端验收（零 key 路径必须全绿）。
+"""SlideCraft MVP 端到端验收（零 key 路径必须全绿）。
 
 跑法：.venv/bin/python tools/e2e_mvp.py
 覆盖：健康 → 设置 → 风格包 → 建项目 → 上传解析 → 大纲 → 页面确认 → 生成（SSE 收进度）

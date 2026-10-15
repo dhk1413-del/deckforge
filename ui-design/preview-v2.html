@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>DeckForge UI 改造预览稿 v2 · 蓝色云平台风</title>
+<title>SlideCraft UI 改造预览稿 v2 · 蓝色云平台风</title>
 <style>
 /* ============================================================
-   DeckForge UI 预览稿 v2 —— 参照参考图（蓝色云平台首页）的配色与风格搭配
+   SlideCraft UI 预览稿 v2 —— 参照参考图（蓝色云平台首页）的配色与风格搭配
    这是「预览稿」，只用于确认方向；确认后才动项目里的实际文件。
    参考图取色（逐像素采样）：主蓝 #2068F0 / 亮青蓝 #28A0F8 /
    区块底 #F1F6FD / 深墨 #101828 / 页脚深色 #151B26 / 卡片白 #FFFFFF
@@ -319,7 +319,7 @@ table.led td.mono{font-family:var(--mono);font-feature-settings:"tnum"}
 <div class="topbar">
   <div class="in">
     <span class="logo"></span>
-    <b>DeckForge UI 改造预览稿</b>
+    <b>SlideCraft UI 改造预览稿</b>
     <span class="ver">v2 · 蓝色云平台风</span>
   </div>
 </div>
@@ -756,7 +756,7 @@ document.querySelectorAll('[data-screen]').forEach((el) => {
   const body = el.innerHTML;
   el.innerHTML = `
     <aside class="side">
-      <div class="brand"><span class="mark"></span><div><b>DeckForge</b><i>AI 生成整套 PPT</i></div></div>
+      <div class="brand"><span class="mark"></span><div><b>SlideCraft</b><i>AI 生成整套 PPT</i></div></div>
       <nav class="nav">${NAV.map(([k,ic,label]) =>
         `<a href="#" class="${k===key?'on':''}">${SVG[ic]}${label}</a>`).join('')}</nav>
       <div class="grp">${SVG.clock.replace('viewBox','viewBox').replace('<svg','<svg style="width:13px;height:13px"')}最近项目</div>
@@ -792,7 +792,7 @@ document.querySelectorAll('[data-screen]').forEach((el) => {
       </div>
       ${body}
       <div class="footline">
-        <b style="color:var(--ink-2);font-weight:600">DeckForge</b><span>自托管工作台 · 本机 :8641</span>
+        <b style="color:var(--ink-2);font-weight:600">SlideCraft</b><span>自托管工作台 · 本机 :8641</span>
         <span class="links"><a href="#">生成向导</a><a href="#">风格库</a><a href="#">接口文档</a><a href="#">安装说明</a></span>
       </div>
     </div>`;

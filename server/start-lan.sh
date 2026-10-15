@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# DeckForge 守护启动（脱离终端，关掉终端/退出 Hermes 也不会停）
+# SlideCraft 守护启动（脱离终端，关掉终端/退出 Hermes 也不会停）
 #
 # 用法：
 #   bash server/start-lan.sh              # 127.0.0.1:8641（只本机，默认）
@@ -38,7 +38,7 @@ else
     lsof -nP -iTCP:"${PORT}" -sTCP:LISTEN | cat
     exit 1
   fi
-  echo "== 启动 DeckForge（HOST=${HOST} PORT=${PORT}）=="
+  echo "== 启动 SlideCraft（HOST=${HOST} PORT=${PORT}）=="
   if [ "$FIRST_RUN" = "1" ]; then
     echo "== 首次启动：正在安装依赖（Python 包 + PptxGenJS 渲染器）=="
     echo "   首次通常要几分钟，取决于网络；期间不要中断，装完会自动就绪。"

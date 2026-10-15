@@ -26,7 +26,7 @@ def swatch(name, val):
 
 color_cards = "\n".join(swatch(k, v) for k, v in colors.items())
 typo_rows = "\n".join(
-    '<tr><td class="num">%s</td><td style="font-family:%s;font-size:%s;font-weight:%s">DeckForge 智能 PPT 生成工作台 / 0123456789</td>'
+    '<tr><td class="num">%s</td><td style="font-family:%s;font-size:%s;font-weight:%s">SlideCraft 智能 PPT 生成工作台 / 0123456789</td>'
     '<td class="num">%s · %s</td></tr>' % (k, t["f"], t["size"], t["w"], t["size"], t["w"])
     for k, t in typo.items())
 
@@ -34,7 +34,7 @@ HTML = f"""<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<title>DeckForge UI 设计规范 · 预览</title>
+<title>SlideCraft UI 设计规范 · 预览</title>
 <style>
 {css}
 /* —— 预览页自身的排版（不属于规范）—— */
@@ -61,7 +61,7 @@ section > .hint {{ color: var(--color-ink-sub); font-size: var(--text-body-sm); 
 </head>
 <body>
 <div class="toolbar"><div class="wrap" style="padding-top:0;padding-bottom:0;display:flex;gap:12px;align-items:center">
-  <strong>DeckForge UI 规范预览</strong>
+  <strong>SlideCraft UI 规范预览</strong>
   <span class="tag">浅色为主</span>
   <span class="num" style="color:var(--color-ink-sub)">{len(colors)} 色 · 25 组件</span>
   <span style="flex:1"></span>
@@ -69,7 +69,7 @@ section > .hint {{ color: var(--color-ink-sub); font-size: var(--text-body-sm); 
 </div></div>
 
 <div class="wrap">
-  <h1 class="page">DeckForge 界面设计规范</h1>
+  <h1 class="page">SlideCraft 界面设计规范</h1>
   <p class="page-sub">浅色为主的企业级蓝调工作台 · 令牌逐像素取自参考图 · 卡片柔和投影 · 色带分层 · 保留暗色</p>
 
   <section>

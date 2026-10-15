@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""DeckForge HTTP 层（FastAPI，:8640）。路由严格对齐 docs/API.md。"""
+"""SlideCraft HTTP 层（FastAPI，:8640）。路由严格对齐 docs/API.md。"""
 import threading
 import asyncio
 import json
@@ -21,7 +21,7 @@ from . import (beautify, codex_engine, config, db, editppt_engine, page_import, 
 
 VERSION = "0.1.0"
 
-app = FastAPI(title="DeckForge", version=VERSION)
+app = FastAPI(title="SlideCraft", version=VERSION)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 os.makedirs(config.FILES_DIR, exist_ok=True)
@@ -1478,6 +1478,6 @@ else:
     @app.get("/")
     def index() -> JSONResponse:
         return JSONResponse(dict(
-            name="DeckForge API", version=VERSION,
+            name="SlideCraft API", version=VERSION,
             frontend="未构建：请在 web/ 执行 npm run build（或 npm run dev 走 :5183）",
             docs="/docs", api_contract="docs/API.md"))

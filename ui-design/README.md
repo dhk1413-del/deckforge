@@ -1,4 +1,4 @@
-# ui-design/ —— DeckForge **应用界面**设计规范（浅色为主）
+# ui-design/ —— SlideCraft **应用界面**设计规范（浅色为主）
 
 > ⚠️ 与 `style-packs/` 区分：**本目录 = 我们自己的界面**；`style-packs/` = **生成的 PPT 页面**的视觉规范。两者同为 Google DESIGN.md 令牌格式，但用途不同，不要混用。
 

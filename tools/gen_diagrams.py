@@ -96,9 +96,9 @@ def diagram(name):
 
 @diagram('architecture')
 def architecture():
-    c = Canvas(1080, 620, 'DeckForge 系统架构')
+    c = Canvas(1080, 620, 'SlideCraft 系统架构')
     c.box(40, 80, 250, 130, '浏览器界面', ['React 19 + TypeScript + Tailwind v4', '构建产物由后端托管', '（浅色为主，中文界面）'], accent=True)
-    c.box(40, 250, 250, 120, '单文件离线网页', ['deckforge-standalone.html', '零依赖，数据存 localStorage'])
+    c.box(40, 250, 250, 120, '单文件离线网页', ['slidecraft-standalone.html', '零依赖，数据存 localStorage'])
     c.box(380, 80, 300, 130, 'FastAPI 服务（本机常驻）', ['/api/* 路由层 · main.py', '作业与流水线 · pipeline.py', 'SSE 逐页进度 / 取消'])
     c.box(380, 250, 300, 120, '渲染与导出', ['render.py 本地兜底渲染', 'pptx/render_native.mjs（PptxGenJS）', 'export_pptx.py 图片版装配'])
     c.box(380, 410, 300, 110, '数据与文件', ['SQLite（WAL）· data/deckforge.db', 'data/files/<项目>/ 原稿与产物'])

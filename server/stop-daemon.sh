@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 停掉 DeckForge 守护进程（start-lan.sh 新 session 启动的 uvicorn PID）
+# 停掉 SlideCraft 守护进程（start-lan.sh 新 session 启动的 uvicorn PID）
 set -e
 cd "$(dirname "$0")/.."
 LOG_DIR="$(pwd)/data/logs"

@@ -1,4 +1,4 @@
-# DeckForge 风格包（style-packs）
+# SlideCraft 风格包（style-packs）
 
 形态：**B + C 混合**（D4 已定，2026-09-16）—— 目录按 B（布局 × 风格解耦、一层一文件、按需加载），
 风格文件按 C（Google DESIGN.md 令牌格式 + prose，可 lint / diff / 导出 DTCG）。

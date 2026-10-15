@@ -107,8 +107,8 @@ def parse():
 
 def build():
     doc = Document()
-    doc.core_properties.title = 'DeckForge 使用说明'
-    doc.core_properties.author = 'DeckForge'
+    doc.core_properties.title = 'SlideCraft 使用说明'
+    doc.core_properties.author = 'SlideCraft'
     doc.core_properties.subject = '安装部署与操作指南'
     sec = doc.sections[0]
     sec.page_width = Inches(8.5); sec.page_height = Inches(11)
@@ -208,7 +208,7 @@ def build():
 h1,h2,h3{color:#000;line-height:1.3}h2{margin-top:38px}a{color:#1e78fa}figure{margin:24px 0;text-align:center}img{max-width:100%;height:auto}figcaption{font-size:13px;color:#536077}
 table{width:100%;border-collapse:collapse;margin:16px 0}th,td{border:1px solid #d9d9d9;padding:10px;text-align:left}th{background:#eaf2ff}pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px;padding:0}code{font-family:ui-monospace,"PingFang SC",monospace}
 @media print{@page{size:letter;margin:14mm 18mm}body{font-size:11pt;margin:0;padding:0}.pagebreak{break-before:page}figure,table,pre{break-inside:avoid}h2,h3{break-after:avoid}}'''
-    SOURCE.with_suffix('.html').write_text('<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DeckForge 使用说明</title><style>' + css + '</style><body>' + '\n'.join(fragments) + '</body></html>')
+    SOURCE.with_suffix('.html').write_text('<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SlideCraft 使用说明</title><style>' + css + '</style><body>' + '\n'.join(fragments) + '</body></html>')
     print(f'Built {page} sections; original-resolution images retained in DOCX and HTML.')
 
 

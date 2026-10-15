@@ -1,11 +1,11 @@
-# DeckForge
+# SlideCraft
 
 自托管的 PPT 生成工作台。上传 Markdown、TXT、DOCX、PDF 或 PPTX（也可以直接粘贴文本），
 它会梳理页面、按选定风格逐页出图，最后导出图片版 PPTX 或原生可编辑 PPTX。
 
 没有配置任何模型密钥时，大纲走本地规则切页、出图走本地兜底渲染，费用为 0，流程和导出都能走通。
 
-下载地址：<https://github.com/dhk1413-del/deckforge>
+下载地址：<https://github.com/dhk1413-del/slidecraft>
 
 ## 安装
 
@@ -18,8 +18,8 @@
 macOS：
 
 ```bash
-git clone https://github.com/dhk1413-del/deckforge.git
-cd deckforge
+git clone https://github.com/dhk1413-del/slidecraft.git
+cd slidecraft
 npm --prefix web install
 npm --prefix web run build
 bash server/start-lan.sh
@@ -66,7 +66,7 @@ macOS 首次启动会自动安装其余依赖。Windows 按使用说明中的 Po
 ![系统架构](docs/diagrams/architecture.svg)
 
 后端 FastAPI + SQLite(WAL)，前端 React 19 + TypeScript + Tailwind v4，构建产物由后端托管。
-仓库里还有一个零依赖的单文件版本 `deckforge-standalone.html`，双击就能离线用，数据存在浏览器里。
+仓库里还有一个零依赖的单文件版本 `slidecraft-standalone.html`，双击就能离线用，数据存在浏览器里。
 
 ## 配置模型
 
@@ -115,3 +115,7 @@ config/          供应商配置模板
 - 渲染器和前端不写死业务文案；图表只画有真源的数据，没有就不画并标注来源。
 - 服务默认只监听 127.0.0.1，没有登录鉴权。
 - 仓库暂未附带开源许可证，对外分发前先补 `LICENSE`，并确认第三方依赖的许可兼容。
+
+## 名称兼容
+
+项目现名为 **SlideCraft**。为保留已有项目、草稿和部署配置，内部数据库文件、浏览器存储键、运行文件及 `DECKFORGE_*` 环境变量继续沿用原有标识；无需迁移或清空数据。

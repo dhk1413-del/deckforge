@@ -1,6 +1,6 @@
 ---
 version: alpha
-name: DeckForge UI
+name: SlideCraft UI
 description: 浅色为主的企业级蓝调工作台：近白蓝灰底 + 白卡 + 蓝主色，克制、干净、可长时间盯屏。
 colors:
   # —— 四个核心语义色（DESIGN.md 规范要求）——

@@ -99,7 +99,7 @@ def convert_with_codex(pid, items, out_path, tokens, style_name) -> dict
 
 硬性要求（违反任何一条都算失败）：
 1. 用 python-pptx 生成 out.pptx。解释器固定用这个（已装 python-pptx 1.0.2）：
-   /path/to/deckforge/.venv/bin/python
+   /path/to/slidecraft/.venv/bin/python
 2. 幻灯片尺寸 13.333 × 7.5 英寸（16:9），**每页一张幻灯片**，顺序与页号一致。
 3. 页面上**所有文字**必须是**真正的文本框**（slide.shapes.add_textbox），内容**逐字取自 pages/pNN.txt**：
    不改写、不翻译、不精简、不漏字、不编造原文没有的文字。字号/位置/对齐参照 pNN.png。

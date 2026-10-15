@@ -1,4 +1,4 @@
-/* DeckForge 原生 PPTX 渲染器。
+/* SlideCraft 原生 PPTX 渲染器。
  * stdin: {output, project, tokens, slides}; stdout: {pages, objects, warnings}
  * 不读取或嵌入整页渲染 PNG；所有版式均由 PowerPoint 原生对象组成。
  */
@@ -10,10 +10,10 @@ import JSZip from 'jszip'
 const input = JSON.parse(fs.readFileSync(0, 'utf8'))
 const pptx = new PptxGenJS()
 pptx.layout = 'LAYOUT_WIDE'
-pptx.author = 'DeckForge'
+pptx.author = 'SlideCraft'
 pptx.subject = '原生可编辑演示文稿'
-pptx.title = input.project?.title || 'DeckForge'
-pptx.company = 'DeckForge'
+pptx.title = input.project?.title || 'SlideCraft'
+pptx.company = 'SlideCraft'
 pptx.lang = 'zh-CN'
 pptx.theme = {
   headFontFace: 'Microsoft YaHei', bodyFontFace: 'Microsoft YaHei', lang: 'zh-CN',

@@ -60,7 +60,7 @@ rd_vars = "\n".join("  --radius-%s: %s;" % (k, v) for k, v in rounded.items())
 ty_vars = "\n".join("  --text-%s: %s;\n  --text-%s--weight: %s;\n  --text-%s--font: \"%s\";" % (k, v["size"], k, v["w"], k, v["f"]) for k, v in typo.items())
 
 APP_CSS = f"""/* ============================================================
-   DeckForge UI 令牌 —— 由 tokens.json 与生成器模板导出（勿手改）
+   SlideCraft UI 令牌 —— 由 tokens.json 与生成器模板导出（勿手改）
    生成来源：W3C DTCG tokens.json；版本：v2
    用法：任何前端直接 <link rel="stylesheet" href="app.css"> 即可拿到令牌与组件类
    ============================================================ */

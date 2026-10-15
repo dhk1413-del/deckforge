@@ -1,4 +1,4 @@
-# DeckForge UI v2 实施与验收报告
+# SlideCraft UI v2 实施与验收报告
 
 日期：2026-10-08（定时作业，07:0x 完成）。执行方：Codex CLI 负责全部代码改动；Hermes 负责备份、独立复核与实机视觉验收。
 结论：**成功** —— v2 已落地并通过全部验收清单（`make lint` ✅、`make verify-fast` 15/15 ✅、8641 实机 6 浅 + 2 暗截图 ✅、暗色与对比度达标 ✅）。
@@ -129,7 +129,7 @@ diff -rq .backup/ui-v2-20261008-064019/tools    tools        → gen_ui_css.py /
 ## 7. 回滚方式
 
 ```bash
-cd /path/to/deckforge
+cd /path/to/slidecraft
 B=.backup/ui-v2-$(cat .backup/LATEST_UI_V2)      # → .backup/ui-v2-20261008-064133（v1 快照）
 rm -rf ui-design web/src tools docs
 cp -a $B/ui-design $B/web/src $B/tools $B/docs .

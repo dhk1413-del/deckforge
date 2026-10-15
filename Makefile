@@ -1,4 +1,4 @@
-# DeckForge 常用命令。
+# SlideCraft 常用命令。
 # 本仓没有 pytest / CI / linter 配置，所以 **`make verify` 就是规范验收入口**：
 # 它只是编排（跑 tools/ 下已有的离线回归 + 前端构建），断言仍写在各自的 tools/test_*.py 里，
 # 不复制第二套真相。详见 tools/verify_all.py。

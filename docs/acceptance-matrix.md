@@ -1,4 +1,4 @@
-# DeckForge M7 验收矩阵
+# SlideCraft M7 验收矩阵
 
 日期：2026-10-09。范围：当前仓库 M1–M7；证据只覆盖本轮实际执行的检查。
 
@@ -56,7 +56,7 @@
 
 在用户授权「把你能做的处理了」后追加的执行与发现，详见 `docs/今晚作业与验收.md`：
 
-- **平台当时是离线的**：WSL 实例约 18:03 重启过（`uptime` 仅 1 小时），带走 DeckForge 进程；非崩溃、非 OOM、日志 0 条 error。已重启并加 `server/watchdog.sh`（60s 探活，挂了自动以 `HOST=0.0.0.0` 拉起）。
+- **平台当时是离线的**：WSL 实例约 18:03 重启过（`uptime` 仅 1 小时），带走 SlideCraft 进程；非崩溃、非 OOM、日志 0 条 error。已重启并加 `server/watchdog.sh`（60s 探活，挂了自动以 `HOST=0.0.0.0` 拉起）。
 - **缺陷①（已修）**：`import-pages` 不登记 `current_version_id`，导致「新建图片转可编辑项目→立刻转换」必然 `400 转换页面或当前版本记录缺失`，**必须重启服务才能转**（`backfill()` 只在启动时跑）。已在 `import_pages` 内即时 `backfill()`。**实测**：修复后新建项目导入即 `8/8` 有版本；修复前同操作 `0/8`。
 - **缺陷②（已修）**：`import-pages` 从不触发 `source_pages`，导致「页面确认」步骤永远显示「原稿缩略图暂不可用」（`/source-pages` 返回 `page_count:0, ready:false`），尽管 `data/files/<pid>/pages/pNN.png` 存在且可 200 取到。已在该处触发缩略图构建。
 - **「转可编辑」还差一环（已补，并已端到端验证）**：page worker 是 `hermes -z … --skills image-to-editable-ppt --yolo`，需要 **Hermes 自身认得该 skill**；只装 `editppt` CLI 不够。已装配到 `~/.hermes/skills/productivity/image-to-editable-ppt`（`hermes skills list` 显示 enabled）。**装好后真实转换端到端成功**：作业 `j_d18d894706d5` 4 分 43 秒完成，页面校验 `editable_text_shapes=5 / images=0`（真可编辑文本框，非整页图），文字与原稿一致，导出 `e_6fdbe9cb3266` 平台可下载且 `snapshot_json` 绑定页版本。

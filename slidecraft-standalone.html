@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>DeckForge · AI 生成整套 PPT（本地单文件版）</title>
+<title>SlideCraft · AI 生成整套 PPT（本地单文件版）</title>
 <style>
 /* ============================================================
-   DeckForge UI 令牌 —— 由 tokens.json 与生成器模板导出（勿手改）
+   SlideCraft UI 令牌 —— 由 tokens.json 与生成器模板导出（勿手改）
    生成来源：W3C DTCG tokens.json；版本：v2
    用法：任何前端直接 <link rel="stylesheet" href="app.css"> 即可拿到令牌与组件类
    ============================================================ */
@@ -151,6 +151,8 @@ body {
 .btn-secondary:hover { background: var(--color-surface-alt); }
 .btn-ghost { background: transparent; color: var(--color-accent-strong); }
 .btn-ghost:hover { background: var(--color-surface-tag); }
+.btn-danger { background: var(--color-danger-ink); color: #fff; }
+.btn-danger:hover { filter: brightness(.94); }
 .btn[disabled], .btn.is-disabled { opacity: .5; cursor: not-allowed; }
 
 /* 标签 / 角标 */
@@ -618,7 +620,7 @@ function download(name, u8) {
 const NAV = [['#/', '生成向导'], ['#/projects', '项目'], ['#/styles', '风格'], ['#/usage', '用量'], ['#/settings', '设置']];
 function shell(inner, active) {
   return '<div class="app">' +
-    '<aside class="side"><div class="brand">DeckForge<span class="tag" style="margin-left:8px">本地版</span></div>' +
+    '<aside class="side"><div class="brand">SlideCraft<span class="tag" style="margin-left:8px">本地版</span></div>' +
     '<nav>' + NAV.map(([h, t]) => '<a href="' + h + '" class="' + (h === active ? 'on' : '') + '">' + t + '</a>').join('') + '</nav>' +
     '<div class="side-foot"><div class="metric-label">生图能力</div><div id="capLine" class="num">检测中…</div>' +
     '<div class="metric-label" style="margin-top:8px">本项目累计</div><div class="num" id="capCost">¥0.00</div></div></aside>' +
