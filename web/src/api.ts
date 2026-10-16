@@ -6,6 +6,7 @@ import { BACKEND_HINT } from './lib/format'
 import type {
   BeautifyJobResponse,
   BeautifyStatus,
+  BeautifyVersionsResponse,
   CodexEngineStatus,
   CreateProjectPayload,
   EditableResponse,
@@ -379,9 +380,18 @@ export const beautifyContinue = (id: string, body: { style_pack_id: string; mode
 export const beautifyEditable = (id: string, body: { style_pack_id?: string } = {}) =>
   request<BeautifyJobResponse>(`/projects/${id}/beautify/editable`, jsonInit('POST', body))
 
-/** 只重生成指定一页（非破坏性：其它页的美图与导出不动） */
-export const beautifyRegeneratePage = (id: string, pageNo: number, body: { style_pack_id?: string; mode?: 'img2img' | 'redesign'; size?: string }) =>
+/** 只重生成指定一页（非破坏性：其它页的美图与导出不动）。
+ *  带 `instruction` 即「优化本页」：在逐字保留与不编造规则内尽量满足用户的修改要求。 */
+export const beautifyRegeneratePage = (id: string, pageNo: number, body: { style_pack_id?: string; mode?: 'img2img' | 'redesign'; size?: string; instruction?: string }) =>
   request<BeautifyJobResponse>(`/projects/${id}/beautify/pages/${pageNo}/regenerate`, jsonInit('POST', body))
+
+/** 该页历史版本：current 是正在使用的图，versions 是已归档的旧版 */
+export const beautifyVersions = (id: string, pageNo: number) =>
+  request<BeautifyVersionsResponse>(`/projects/${id}/beautify/pages/${pageNo}/versions`)
+
+/** 恢复到某个历史版本（恢复前会先归档当前图，可再切回） */
+export const beautifyRestoreVersion = (id: string, pageNo: number, versionId: string) =>
+  request<BeautifyJobResponse>(`/projects/${id}/beautify/pages/${pageNo}/versions/${encodeURIComponent(versionId)}/restore`, jsonInit('POST', {}))
 
 export const getBeautify = (id: string) => request<BeautifyStatus>(`/projects/${id}/beautify`)
 export const codexEngine = () => request<CodexEngineStatus>('/codex-engine')

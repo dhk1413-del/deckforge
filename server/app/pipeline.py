@@ -925,7 +925,7 @@ def _export_native_pptx(project: Dict[str, Any], rows: List[Dict[str, Any]], out
 
 
 async def run_beautify_page(project_id: str, page_no: int, style_pack_id: str = '', mode: str = '',
-                            size: str = '2K') -> str:
+                            size: str = '2K', instruction: str = '') -> str:
     """只重生成**指定一页**（非破坏性）：其它页的美图与导出都不动，只在最后重装配图片版。
 
     与整批 `run_beautify(phase='preview')` 的关键区别：**不清空** beauty/text/work 目录，也不删导出记录。
@@ -960,7 +960,8 @@ async def run_beautify_page(project_id: str, page_no: int, style_pack_id: str = 
             page = next((p for p in rendered['pages'] if p['page_no'] == page_no), None)
             if page is None:
                 raise ValueError('原稿没有这一页')
-            await emit(job['id'], dict(type='progress', page=page_no, total=1, stage='beauty', status='running', message='正在美化页面'))
+            await emit(job['id'], dict(type='progress', page=page_no, total=1, stage='beauty', status='running',
+                                       message='正在按你的修改要求重新设计本页' if instruction.strip() else '正在美化页面'))
             text = await asyncio.to_thread(beautify.page_text_source, src, page_no)
             root = beautify.directory(project_id)
             text_dir = root / 'text'
@@ -970,8 +971,12 @@ async def run_beautify_page(project_id: str, page_no: int, style_pack_id: str = 
             planned_page = planned.get(page_no)
             page_mode = ('img2img' if planned_page.get('keep_material') else 'redesign') if planned_page else use_mode
             keep_material = bool(planned_page.get('keep_material')) if planned_page else False
+            # 归档的是**上一版**图，条目里记的是那一版的修改要求（首次归档为空）
+            previous = {p['page_no']: p for p in (old.get('pages') or [])}.get(page_no) or {}
+            archived = await asyncio.to_thread(beautify.archive_version, project_id, page_no,
+                                               previous.get('instruction') or '')
             res = await asyncio.to_thread(beautify.beautify_page, project_id, page_no, pack.get('tokens') or {}, page_mode, size, text,
-                                          keep_material=keep_material, source_path=src)
+                                          keep_material=keep_material, source_path=src, instruction=instruction)
             if is_cancelled(job['id']):
                 _job_update(job['id'], status='cancelled', message='已取消')
                 await emit(job['id'], dict(type='cancelled', message='已取消重生成'))
@@ -987,7 +992,10 @@ async def run_beautify_page(project_id: str, page_no: int, style_pack_id: str = 
                                   provider=res.get('provider', 'local_render'), model=res.get('model', 'local'),
                                   cost_cny=res.get('cost_cny', 0), latency_ms=res.get('latency_ms', 0),
                                   text_source=text['source'], keep_material=keep_material,
-                                  preserved_pictures=int(res.get('preserved_pictures') or 0))
+                                  preserved_pictures=int(res.get('preserved_pictures') or 0),
+                                  instruction=(instruction or '').strip()[:200],
+                                  versions=len(beautify.read_versions(project_id, page_no)),
+                                  archived_version=(archived or {}).get('id', ''))
             state['pages'] = [pages[k] for k in sorted(pages)]
             if warning:
                 state['warnings'] = (state.get('warnings') or []) + [warning]
@@ -1021,6 +1029,65 @@ async def run_beautify_page(project_id: str, page_no: int, style_pack_id: str = 
             state['warnings'] = (state.get('warnings') or []) + [str(exc)]
             state['updated_at'] = db.now()
             beautify.write_state(project_id, state)
+            _job_update(job['id'], status='failed', message=str(exc))
+            await emit(job['id'], dict(type='error', message=str(exc)))
+
+    asyncio.create_task(worker())
+    return job['id']
+
+
+async def run_beautify_restore(project_id: str, page_no: int, version_id: str) -> str:
+    """把某一页恢复到指定历史版本：先归档当前图（可再切回），覆盖后重装配图片版。"""
+    from . import beautify
+    proj = dict(db.q1('SELECT * FROM projects WHERE id=?', (project_id,)) or {})
+    state = beautify.read_state(project_id) or {}
+    if state.get('phase') not in ('preview', 'full', 'done'):
+        raise ValueError('请先生成美化预览，再恢复历史版本')
+    if page_no not in (state.get('page_nos') or []):
+        raise ValueError('该页不在本次所选页面内')
+    if not any(e['id'] == version_id for e in beautify.read_versions(project_id, page_no)):
+        raise ValueError('没有这个历史版本')
+    if any(j['project_id'] == project_id and j['kind'] in ('beautify', 'beautify_page', 'beautify_editable', 'beautify_restore')
+           and j['status'] in ('running', 'cancelling') for j in JOBS.values()):
+        raise ValueError('该项目还有美化作业在跑，请等它结束')
+    job = new_job(project_id, 'beautify_restore', 1)
+
+    async def worker():
+        try:
+            await emit(job['id'], dict(type='progress', page=page_no, total=1, stage='beauty', status='running', message='正在恢复该页历史版本'))
+            entry = await asyncio.to_thread(beautify.restore_version, project_id, page_no, version_id)
+            if is_cancelled(job['id']):
+                _job_update(job['id'], status='cancelled', message='已取消')
+                await emit(job['id'], dict(type='cancelled', message='已取消恢复'))
+                return
+            root = beautify.directory(project_id)
+            fresh = beautify.read_state(project_id) or state
+            pages = {p['page_no']: p for p in fresh.get('pages', [])}
+            page = pages.get(page_no)
+            if page:
+                page['restored_from'] = version_id
+                page['instruction'] = entry.get('instruction', '')
+                page['versions'] = len(beautify.read_versions(project_id, page_no))
+                pages[page_no] = page
+                fresh['pages'] = [pages[k] for k in sorted(pages)]
+            fresh['updated_at'] = db.now()
+            beautify.write_state(project_id, fresh)
+            image_path = str(root / 'image.pptx')
+            if fresh.get('exports', {}).get('image') or os.path.isfile(image_path):
+                await emit(job['id'], dict(type='progress', page=page_no, total=1, stage='assemble', status='running', message='正在重新装配图片版'))
+                await asyncio.to_thread(export_pptx.export_image_pptx, proj,
+                                        [dict(p, image_path=p['beauty']) for p in fresh['pages']], image_path)
+                fresh['exports']['image'] = image_path
+                fresh['updated_at'] = db.now()
+                beautify.write_state(project_id, fresh)
+                db.x('DELETE FROM exports WHERE project_id=? AND kind=?', (project_id, 'beautify_image'))
+                db.insert('exports', dict(id=db.uid('e'), project_id=project_id, kind='beautify_image', path=image_path,
+                                          pages=len(fresh['pages']), editable_pages_json=json.dumps([]),
+                                          passthrough_pages_json=json.dumps([p['page_no'] for p in fresh['pages']]),
+                                          size_bytes=os.path.getsize(image_path), created_at=db.now()))
+            _job_update(job['id'], status='done', done=1, message='已恢复历史版本')
+            await emit(job['id'], dict(type='done', message='已恢复历史版本', page=page_no))
+        except Exception as exc:                     # noqa: BLE001 —— 失败要进 SSE，不能吞
             _job_update(job['id'], status='failed', message=str(exc))
             await emit(job['id'], dict(type='error', message=str(exc)))
 

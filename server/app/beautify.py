@@ -8,6 +8,8 @@ import shutil
 import sys
 import tempfile
 import threading
+import time
+import uuid
 
 from PIL import Image
 from pptx import Presentation
@@ -236,6 +238,83 @@ def source_path_of(pid) -> str:
     return (row or {}).get('source_path') or ''
 
 
+VERSION_KEEP = 5          # 每页最多保留的历史版本数（超出删最旧的，避免磁盘无限增长）
+
+
+def _versions_dir(pid, page_no):
+    folder = directory(pid) / 'versions' / f'p{page_no:02d}'
+    folder.mkdir(parents=True, exist_ok=True)
+    return folder
+
+
+def read_versions(pid, page_no) -> list:
+    try:
+        data = json.loads((_versions_dir(pid, page_no) / 'index.json').read_text(encoding='utf-8'))
+        return [e for e in data if isinstance(e, dict) and e.get('file')]
+    except (OSError, ValueError):
+        return []
+
+
+def write_versions(pid, page_no, entries: list) -> None:
+    folder = _versions_dir(pid, page_no)
+    pending = folder / 'index.json.pending'
+    pending.write_text(json.dumps(entries, ensure_ascii=False), encoding='utf-8')
+    os.replace(pending, folder / 'index.json')
+
+
+def current_beauty(pid, page_no):
+    return directory(pid) / 'beauty' / f'p{page_no:02d}.png'
+
+
+def archive_version(pid, page_no, instruction=''):
+    """把该页**当前**的美图归档成历史版本（重生成/恢复之前调用）。没有现存图时返回 None。"""
+    target = current_beauty(pid, page_no)
+    if not target.is_file():
+        return None
+    folder = _versions_dir(pid, page_no)
+    name = time.strftime('%Y%m%d-%H%M%S') + '-' + uuid.uuid4().hex[:6] + '.png'
+    shutil.copyfile(target, folder / name)
+    entry = dict(id=name[: -len('.png')], file=name, created_at=db.now(),
+                 instruction=(instruction or '').strip()[:200], size_bytes=(folder / name).stat().st_size)
+    entries = [e for e in read_versions(pid, page_no) if e.get('file') != name]
+    entries.insert(0, entry)
+    for old in entries[VERSION_KEEP:]:
+        try:
+            (folder / old['file']).unlink()
+        except OSError:
+            pass
+    write_versions(pid, page_no, entries[:VERSION_KEEP])
+    return entry
+
+
+def list_versions(pid, page_no) -> dict:
+    """历史版本列表。当前正在使用的图**不在**列表里（它是 beauty/pNN.png），由前端单独标注。"""
+    folder = _versions_dir(pid, page_no)
+    entries = [dict(id=e['id'], created_at=e.get('created_at', ''), instruction=e.get('instruction', ''),
+                    size_bytes=e.get('size_bytes', 0),
+                    url=f'/files/{pid}/beautify/versions/p{page_no:02d}/{e["file"]}')
+               for e in read_versions(pid, page_no) if (folder / e['file']).is_file()]
+    live = current_beauty(pid, page_no).is_file()
+    return dict(page_no=page_no, current=('/files/%s/beautify/beauty/p%02d.png' % (pid, page_no)) if live else '',
+                versions=entries)
+
+
+def restore_version(pid, page_no, version_id: str):
+    """用某个历史版本覆盖当前图（覆盖前先把当前图也归档，保证可再切回来）。"""
+    folder = _versions_dir(pid, page_no)
+    entry = next((e for e in read_versions(pid, page_no) if e['id'] == version_id), None)
+    if not entry:
+        raise ValueError('没有这个历史版本')
+    source = folder / entry['file']
+    if not source.is_file():
+        raise ValueError('历史版本文件已丢失')
+    archive_version(pid, page_no, '恢复版本前归档')
+    target = current_beauty(pid, page_no)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(source, target)
+    return entry
+
+
 def preserve_pictures(origin_path, target_path, boxes, pad=0.002):
     """把原图这些区域的像素**原样**贴回生成结果，返回实际处理的图片数。
 
@@ -340,7 +419,7 @@ def beautify_prompt(tokens):
 
 
 def beautify_page(pid, page_no, tokens, mode='img2img', size='2K', text=None,
-                  keep_material=False, source_path=''):
+                  keep_material=False, source_path='', instruction=''):
     if mode not in ('img2img', 'redesign'):
         raise ValueError('mode 只能是 img2img 或 redesign')
     root = directory(pid)
@@ -357,6 +436,16 @@ def beautify_page(pid, page_no, tokens, mode='img2img', size='2K', text=None,
         if not (text.get('texts') or text.get('title') or text.get('points')):
             warning = f'第 {page_no} 页无文字真源，未编造文字，退回 img2img'
             mode = 'img2img'
+    def decorate(prompt_text: str) -> str:
+        # 附加约束必须在**调用模型之前**拼好（原先保留原图那句写在调用之后，等于没送到模型）
+        extra = ''
+        if keep_material:
+            extra += ('；照片、插画、图表截图、图标等图片元素必须原样保留：不得重绘、替换、删除、裁剪或改变色调')
+        if (instruction or '').strip():
+            extra += ('；用户在上一版基础上提出的修改要求（在不违反上述逐字保留与不编造规则的前提下尽量满足）：'
+                      + instruction.strip()[:400])
+        return prompt_text + extra
+
     try:
         if mode == 'redesign':
             prompt = ('重新设计一张 16:9 演示页。以下标题与要点必须逐字保留，不得增删、改写或编造数据；'
@@ -364,7 +453,7 @@ def beautify_page(pid, page_no, tokens, mode='img2img', size='2K', text=None,
                       + json.dumps(dict(title=text.get('title', ''), points=text.get('points', []),
                                         texts=text.get('texts', [])), ensure_ascii=False)
                       + '。风格令牌：' + json.dumps(tokens, ensure_ascii=False))
-            result = providers.generate_image(prompt, size)
+            result = providers.generate_image(decorate(prompt), size)
         else:
             prompt = beautify_prompt(tokens)
             if text and text.get('source') == 'user':
@@ -373,10 +462,7 @@ def beautify_page(pid, page_no, tokens, mode='img2img', size='2K', text=None,
                           + json.dumps(dict(title=text.get('title', ''), points=text.get('points', []),
                                             texts=text.get('texts', [])), ensure_ascii=False)
                           + '。风格令牌：' + json.dumps(tokens, ensure_ascii=False))
-            result = providers.edit_image(src.read_bytes(), prompt, size)
-        if keep_material:
-            # 双保险：提示词要求 + 生成后按坐标把原图像素贴回（后者才是有保证的那层）
-            prompt += ('；照片、插画、图表截图、图标等图片元素必须原样保留：不得重绘、替换、删除、裁剪或改变色调')
+            result = providers.edit_image(src.read_bytes(), decorate(prompt), size)
         if result.get('ok'):
             with Image.open(io.BytesIO(result['image_bytes'])) as image:
                 image.save(target, format='PNG')

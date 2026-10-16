@@ -566,6 +566,20 @@ export interface BeautifyPage {
   keep_material?: boolean
   /** 实际贴回的图片张数（0 表示该页没有页内图片元素） */
   preserved_pictures?: number
+  /** 上一次「优化本页」填写的修改要求（空串表示没填过） */
+  instruction?: string
+  /** 已归档的历史版本数 */
+  version_count?: number
+  /** 当前图来自哪个历史版本（恢复过才有） */
+  restored_from?: string
+}
+
+/** 单页历史版本（GET /beautify/pages/{no}/versions） */
+export interface BeautifyVersionsResponse {
+  page_no: number
+  /** 正在使用的图；没有结果时为空串 */
+  current: string
+  versions: Array<{ id: string; created_at: string; instruction: string; size_bytes: number; url: string }>
 }
 
 export interface BeautifyContentPage {

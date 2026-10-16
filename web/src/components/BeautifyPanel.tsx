@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { cancelJob, beautifyOrigin, beautifyContinue, beautifyEditable, beautifyPreview, beautifyRegeneratePage, codexEngine, createProject, getBeautify, getProject, getProjectJobs, uploadSource, prepareBeautifyContent, saveBeautifyContent, type ApiError } from '../api'
+import { cancelJob, beautifyOrigin, beautifyContinue, beautifyEditable, beautifyPreview, beautifyRegeneratePage, beautifyRestoreVersion, beautifyVersions, codexEngine, createProject, getBeautify, getProject, getProjectJobs, uploadSource, prepareBeautifyContent, saveBeautifyContent, type ApiError } from '../api'
 import { IconFolder } from './Icons'
 import { Dropzone } from './Dropzone'
 import { ProgressPanel } from './ProgressPanel'
@@ -8,7 +8,7 @@ import { useToast } from './Toast'
 import { useModalFocus } from '../hooks/useModalFocus'
 import { useJobStream } from '../hooks/useJobStream'
 import { MAX_UPLOAD_BYTES, UPLOAD_SIZE_HINT, bytes, cn, uploadTooLarge } from '../lib/format'
-import type { BeautifyStatus, CodexEngineStatus, BeautifyContentPlan, StylePack } from '../types'
+import type { BeautifyStatus, BeautifyVersionsResponse, CodexEngineStatus, BeautifyContentPlan, StylePack } from '../types'
 
 /* ─────────────── ③ PPT美化：上传 / 预览 / 完成 ─────────────── */
 
@@ -31,18 +31,25 @@ function BeautifyStyleCover({ pack }: { pack: StylePack }) {
 }
 
 /** 单页重生成确认（会真的调用生图模型，先说清楚影响面再提交） */
-function RegenerateDialog({ pageNo, onClose, onConfirm }: { pageNo: number; onClose: () => void; onConfirm: () => void }) {
+function OptimizeDialog({ pageNo, onClose, onConfirm }: { pageNo: number; onClose: () => void; onConfirm: (instruction: string) => void }) {
   const modalRef = useModalFocus(onClose)
+  const [instruction, setInstruction] = useState('')
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" ref={modalRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label={`重新生成第 ${pageNo} 页`} onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" ref={modalRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label={`优化第 ${pageNo} 页`} onClick={onClose}>
       <div className="card flex w-full max-w-[28rem] flex-col gap-3" onClick={(event) => event.stopPropagation()}>
-        <h3 className="m-0 text-h3">重新生成第 <span className="num">{pageNo}</span> 页</h3>
+        <h3 className="m-0 text-h3">优化本页 <span className="num">P{pageNo}</span></h3>
+        <label className="flex flex-col gap-1">
+          <span className="metric-label">修改要求</span>
+          <textarea className="input h-32 resize-y py-2" autoFocus value={instruction} onChange={(e) => setInstruction(e.target.value)}
+            placeholder="输入你想让 AI 修改的方向，请尽可能全面详细描述，例如：标题更突出，配色变成深蓝，图表区域放大 1.2 倍…" />
+        </label>
         <p className="m-0 text-body-sm text-ink-sub">
-          会调用已配置的生图模型，费用按设置与用量账本记录；<strong>其它页的生成结果与导出不会被改动</strong>，完成后会重新装配图片版。生成期间可以「取消生成」。
+          优化会再次调用已配置的生图模型，费用按设置与用量账本记录；<strong>其它页结果不受影响</strong>。
+          生成前会先把本页当前结果归档为历史版本，可随时切回；留空则按原风格直接重生成。
         </p>
         <div className="flex justify-end gap-2">
           <button type="button" className="btn btn-secondary" onClick={onClose}>取消</button>
-          <button type="button" className="btn btn-primary" onClick={onConfirm}>开始重新生成</button>
+          <button type="button" className="btn btn-primary" onClick={() => onConfirm(instruction.trim())}>确认优化</button>
         </div>
       </div>
     </div>
@@ -92,6 +99,12 @@ export function BeautifyPanel({ packs, loadingPacks, onStepChange, resumeProject
   const [engine, setEngine] = useState<CodexEngineStatus | null>(null)
   const [engineError, setEngineError] = useState<string | null>(null)
   const [cancelling, setCancelling] = useState(false)
+  /* ⑤ 结果页：本页历史版本（预览 + 恢复）与本次优化信息 */
+  const [regenInfo, setRegenInfo] = useState<{ pageNo: number; instruction: string } | null>(null)
+  const [versionsOpen, setVersionsOpen] = useState(false)
+  const [versions, setVersions] = useState<BeautifyVersionsResponse | null>(null)
+  const [versionsBusy, setVersionsBusy] = useState(false)
+  const [versionPreview, setVersionPreview] = useState<string | null>(null)
   useEffect(() => {
     onStepChange(step)
     window.scrollTo({ top: 0 })
@@ -260,6 +273,30 @@ export function BeautifyPanel({ packs, loadingPacks, onStepChange, resumeProject
     } catch (e) { setEditableBusy(false); setError(errorDetail(e)) }
   }
 
+  /** 打开/关闭本页历史版本列表（每次打开都重新拉，避免看到旧数据） */
+  async function toggleVersions() {
+    if (!projectId || !resultCurrent) return
+    if (versionsOpen) { setVersionsOpen(false); setVersionPreview(null); return }
+    setVersionsOpen(true); setVersionsBusy(true); setError(null)
+    try {
+      setVersions(await beautifyVersions(projectId, resultCurrent.page_no))
+    } catch (e) { setError(errorDetail(e)) }
+    finally { setVersionsBusy(false) }
+  }
+
+  /** 恢复某个历史版本（恢复前后端会先归档当前图，可再切回） */
+  async function restoreVersion(versionId: string) {
+    if (!projectId || !resultCurrent || busy) return
+    setBusy(true); setError(null)
+    try {
+      const job = await beautifyRestoreVersion(projectId, resultCurrent.page_no, versionId)
+      if (!job.job_id) throw new Error('后端没有返回作业号')
+      setJobId(job.job_id)
+      setVersionsOpen(false); setVersionPreview(null)
+      toast.info('已开始恢复历史版本', '恢复前会先归档当前结果，可再切回')
+    } catch (e) { setError(errorDetail(e)); setBusy(false) }
+  }
+
   async function confirmContent() {
     if (!projectId || !content || busy) return
     setBusy(true); setError(null)
@@ -351,16 +388,18 @@ export function BeautifyPanel({ packs, loadingPacks, onStepChange, resumeProject
     setStep(target as 1 | 2 | 3 | 4 | 5)
   }
   /** 重新生成当前这一页：后端只动这一页，其它页与导出不变，最后重装配图片版 */
-  async function regenerateCurrentPage() {
+  async function regenerateCurrentPage(instruction = '') {
     if (!projectId || !resultCurrent || busy) return
     const pageNo = resultCurrent.page_no
     setRegenTarget(null)
     setBusy(true); setError(null)
     try {
-      const job = await beautifyRegeneratePage(projectId, pageNo, { style_pack_id: packId || undefined, mode: imageMode })
+      const job = await beautifyRegeneratePage(projectId, pageNo, { style_pack_id: packId || undefined, mode: imageMode, instruction })
       if (!job.job_id) throw new Error('后端没有返回作业号')
       setJobId(job.job_id)
-      toast.info(`已开始重新生成第 ${pageNo} 页`, '其它页结果不会改动；完成后会重新装配图片版')
+      setRegenInfo({ pageNo, instruction })
+      toast.info(instruction ? `已开始按修改要求优化第 ${pageNo} 页` : `已开始重新生成第 ${pageNo} 页`,
+                 '其它页结果不会改动；本页旧结果已归档为历史版本')
     } catch (e) { setError(errorDetail(e)); setBusy(false) }
   }
 
@@ -541,18 +580,57 @@ export function BeautifyPanel({ packs, loadingPacks, onStepChange, resumeProject
             <span className="font-semibold">第 <span className="num">{resultCurrent.page_no}</span> 页</span>
             <span className={cn('status', resultPageState(resultCurrent).cls)}>{resultPageState(resultCurrent).label}</span>
             <span className="flex-1" />
-            <button type="button" className="btn btn-primary rounded-full" disabled={busy || !resultCurrent.beauty_url} title={resultCurrent.beauty_url ? '只重新生成这一页，其它页结果不变' : '该页还没有结果，先生成预览'} onClick={() => setRegenTarget(resultCurrent.page_no)}>{busy ? '生成中…' : '重新生成本页'}</button>
+            <button type="button" className="btn btn-primary rounded-full" disabled={busy || !resultCurrent.beauty_url}
+                    title={resultCurrent.beauty_url ? '填写修改要求，让 AI 只重做这一页（其它页结果不变）' : '该页还没有结果，先生成预览'}
+                    onClick={() => setRegenTarget(resultCurrent.page_no)}>{busy ? '生成中…' : '✦ 优化本页'}</button>
             <button type="button" className="btn btn-secondary rounded-full" aria-pressed={showOrigin} disabled={busy} onClick={() => setShowOrigin(value => !value)}>{showOrigin ? '隐藏原稿' : '对比原稿'}</button>
+            <button type="button" className="btn btn-secondary rounded-full" disabled={busy || !resultCurrent.beauty_url}
+                    aria-expanded={versionsOpen} title="查看本页历史版本，可预览后恢复"
+                    onClick={() => void toggleVersions()}>查看历史版本 ▾</button>
             <button type="button" className="btn btn-secondary rounded-full" aria-pressed={overview} disabled={busy} onClick={() => setOverview(value => !value)}>{overview ? '返回单页' : '缩略总览'}</button>
           </div>
+          {versionsOpen && (
+            <div className="beautify-versions" role="dialog" aria-label="本页历史版本">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-body-sm font-semibold">本页历史版本</span>
+                <span className="text-caption text-ink-sub">可先预览，再决定是否恢复</span>
+                <span className="flex-1" />
+                <button type="button" className="btn btn-secondary h-8! text-body-sm" onClick={() => { setVersionsOpen(false); setVersionPreview(null) }}>关闭</button>
+              </div>
+              {versionsBusy && <p className="m-0 text-body-sm text-ink-sub">正在读取…</p>}
+              {!versionsBusy && versions && (
+                <ul className="beautify-version-list">
+                  <li className="is-current">
+                    <span className="font-semibold">当前使用</span>
+                    <span className="text-caption text-ink-sub">正在展示的结果（每次优化前会自动归档）</span>
+                  </li>
+                  {versions.versions.map((version, index) => (
+                    <li key={version.id}>
+                      <span className="font-semibold">版本 <span className="num">{versions.versions.length - index}</span></span>
+                      <span className="text-caption text-ink-sub">{version.created_at.replace('T', ' ').slice(0, 16)}</span>
+                      {version.instruction && <span className="text-caption text-ink-sub">修改要求：{version.instruction}</span>}
+                      <span className="flex-1" />
+                      <button type="button" className="link" onClick={() => setVersionPreview(version.url)}>预览</button>
+                      <button type="button" className="link" disabled={busy} onClick={() => void restoreVersion(version.id)}>恢复此版本</button>
+                    </li>
+                  ))}
+                  {!versions.versions.length && <li className="text-caption text-ink-muted">还没有历史版本；每次优化或重生成都会先把旧结果归档</li>}
+                </ul>
+              )}
+            </div>
+          )}
           {overview ? <OverviewGrid current={resultCurrentIndex} onSelect={(index) => { setResultIndex(index); setOverview(false) }} emptyText="未生成"
             items={resultPages.map(page => ({ key: page.page_no, label: `查看第 ${page.page_no} 页结果`, image: withVersion(page.beauty_url, result.updated_at) }))} /> : <>
             <div className="deck-media-frame">
               {generatingCurrent
                 ? <div className="beautify-generating" role="status" aria-busy="true">
                       <span className="deck-spinner" aria-hidden="true" />
-                      <p className="beautify-organize-title">正在生成美化结果…</p>
-                      <p className="beautify-organize-sub">正在按所选风格{resultCurrent.keep_material ? '保留原页图片与版式、只替换配色与质感' : '重新设计本页'}</p>
+                      <p className="beautify-organize-title">{regenInfo && regenInfo.pageNo === resultCurrent.page_no ? '正在重新设计本页…' : '正在生成美化结果…'}</p>
+                      <p className="beautify-organize-sub">
+                        {regenInfo && regenInfo.pageNo === resultCurrent.page_no
+                          ? (regenInfo.instruction ? `根据你的修改要求重新调用 AI 模型设计：${regenInfo.instruction}` : '根据你的操作重新调用 AI 模型设计本页')
+                          : `正在按所选风格${resultCurrent.keep_material ? '保留原页图片与版式、只替换配色与质感' : '重新设计本页'}`}
+                      </p>
                       <div className="beautify-generating-bar" role="progressbar" aria-valuemin={0} aria-valuemax={resultPages.length}
                            aria-valuenow={resultDoneCount} aria-valuetext={`已完成 ${resultDoneCount} / ${resultPages.length} 页`}>
                         <i style={{ width: `${resultPercent}%` }} />
@@ -567,7 +645,7 @@ export function BeautifyPanel({ packs, loadingPacks, onStepChange, resumeProject
                   ? <button type="button" className="deck-media-open" title="点击放大查看" onClick={() => setLightbox(true)}><img src={withVersion(resultCurrent.beauty_url, result.updated_at)} alt={`第 ${resultCurrent.page_no} 页生成结果`} /></button>
                   : <p className="deck-slide-empty">这一页还没有生成结果{result.phase === 'preview' ? '：预览阶段只生成所选页中的前 3 页' : ''}。</p>}
             </div>
-            {resultCurrent.beauty_ok === false && resultCurrent.beauty_url && <p className="m-0 text-body-sm text-ink-sub" role="alert">该页生图失败，当前显示的是原图副本；可点上方「重新生成本页」再试，成本会计入账本。</p>}
+            {resultCurrent.beauty_ok === false && resultCurrent.beauty_url && <p className="m-0 text-body-sm text-ink-sub" role="alert">该页生图失败，当前显示的是原图副本；可点上方「✦ 优化本页」再试，成本会计入账本。</p>}
             {showOrigin && (resultCurrent.origin_url
               ? <img src={resultCurrent.origin_url} alt={`原稿第 ${resultCurrent.page_no} 页`} className="deck-slide-origin" loading="lazy" />
               : <p className="m-0 text-caption text-ink-muted">后端未提供该页原稿图。</p>)}
@@ -600,7 +678,18 @@ export function BeautifyPanel({ packs, loadingPacks, onStepChange, resumeProject
         <button type="button" className="btn btn-primary rounded-full px-6" disabled={busy || !packId || !selected.length || !contentSaved} onClick={() => void startPreview()}>生成前 <span className="num">{Math.min(3, selected.length)}</span> 页预览</button>
       </ActionBar>}
       {step === 5 && editableBusy && <div className="panel-alt text-body-sm" role="status">{editableStream.message || '正在重建原生可编辑版…'}</div>}
-      {regenTarget !== null && <RegenerateDialog pageNo={regenTarget} onClose={() => setRegenTarget(null)} onConfirm={() => void regenerateCurrentPage()} />}
+      {versionPreview && (
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-3 bg-black/70 p-4" role="dialog" aria-modal="true"
+             aria-label="历史版本预览" onClick={() => setVersionPreview(null)}>
+          <img src={versionPreview} alt="历史版本预览" className="max-h-[76vh] max-w-[92vw] rounded-md border border-white/25 bg-white object-contain"
+               onClick={(event) => event.stopPropagation()} />
+          <div className="flex flex-wrap items-center gap-2" onClick={(event) => event.stopPropagation()}>
+            <span className="text-body-sm text-white">这是历史版本预览；点「恢复此版本」才会替换当前结果</span>
+            <button type="button" className="btn btn-secondary h-8! text-body-sm" onClick={() => setVersionPreview(null)}>关闭</button>
+          </div>
+        </div>
+      )}
+      {regenTarget !== null && <OptimizeDialog pageNo={regenTarget} onClose={() => setRegenTarget(null)} onConfirm={(instruction) => void regenerateCurrentPage(instruction)} />}
       {lightbox && result && resultPages.length > 0 && <PageLightbox
         pages={resultPages.map((page, index) => ({
           image: page.beauty_url,

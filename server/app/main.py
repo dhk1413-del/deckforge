@@ -1400,10 +1400,30 @@ async def beautify_regenerate_page(pid: str, page_no: int, payload: Dict[str, An
     _beautify_project(pid)
     try:
         job = await pipeline.run_beautify_page(pid, page_no, str(payload.get('style_pack_id') or ''),
-                                               str(payload.get('mode') or ''), str(payload.get('size') or '2K'))
+                                               str(payload.get('mode') or ''), str(payload.get('size') or '2K'),
+                                               str(payload.get('instruction') or ''))
     except (ValueError, TypeError) as exc:
         raise HTTPException(400, str(exc))
-    return dict(job_id=job, progress_url=f'/api/jobs/{job}/stream', page_no=page_no, message='已开始重生成该页')
+    return dict(job_id=job, progress_url=f'/api/jobs/{job}/stream', page_no=page_no,
+                message='已开始按你的修改要求重新设计该页' if (payload.get('instruction') or '').strip() else '已开始重生成该页')
+
+
+@app.get('/api/projects/{pid}/beautify/pages/{page_no}/versions')
+def beautify_versions(pid: str, page_no: int) -> Dict[str, Any]:
+    """该页历史版本列表：当前正在使用的图单独给 `current`，不在 versions 里（前端标注「当前使用」）。"""
+    _beautify_project(pid)
+    return beautify.list_versions(pid, page_no)
+
+
+@app.post('/api/projects/{pid}/beautify/pages/{page_no}/versions/{version_id}/restore')
+async def beautify_restore(pid: str, page_no: int, version_id: str) -> Dict[str, Any]:
+    """把该页恢复到某个历史版本（恢复前会先归档当前图，可再切回）。"""
+    _beautify_project(pid)
+    try:
+        job = await pipeline.run_beautify_restore(pid, page_no, version_id)
+    except (ValueError, TypeError) as exc:
+        raise HTTPException(400, str(exc))
+    return dict(job_id=job, progress_url=f'/api/jobs/{job}/stream', page_no=page_no, message='已开始恢复该页历史版本')
 
 
 @app.post('/api/projects/{pid}/beautify/continue')
@@ -1451,7 +1471,10 @@ def beautify_status(pid: str) -> Dict[str, Any]:
             beauty_url=pipeline._files_url(page['beauty']) if os.path.isfile(page.get('beauty', '')) else '',
             beauty_ok=page.get('beauty_ok', False), text_source=page.get('text_source', 'none'),
             keep_material=bool(page.get('keep_material', False)),
-            preserved_pictures=int(page.get('preserved_pictures') or 0)))
+            preserved_pictures=int(page.get('preserved_pictures') or 0),
+            instruction=str(page.get('instruction') or ''),
+            version_count=int(page.get('versions') or 0),
+            restored_from=str(page.get('restored_from') or '')))
     result['exports'] = {key: pipeline._files_url(path) for key, path in state.get('exports', {}).items() if os.path.isfile(path)}
     # 内容是否**已保存并确认**（磁盘上存在与当前原稿匹配的 content.json）——恢复流程时用它判断第③步是否已完成
     result['content_saved'] = bool(beautify.content_plan(pid, proj['source_path']))
