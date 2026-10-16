@@ -67,6 +67,9 @@ def stream_close(job_id: str) -> None:
         if JOBS.get(job_id, {}).get("status") in _TERMINAL:
             _evict_job(job_id)
 CONCURRENCY = 3
+# 文档生成的逐页并发：与美化同一标准——多页一起生成。默认 6（零 key 时走本地原生渲染，属 CPU 密集，
+# 比生图的 8 略保守）；可用环境变量 DECKFORGE_GENERATE_CONCURRENCY 调整。
+GENERATE_CONCURRENCY = max(1, int(os.environ.get("DECKFORGE_GENERATE_CONCURRENCY") or 6))
 # 美化逐页生图并发：参考产品是「多页一起生成」，默认放宽到 8（页数更少时按页数）。
 # 太小会看着像排队；太大可能触发供应商限流——被限流时该页会如实降级为原图并记 warning，不会假装成功。
 # 需要调整时用环境变量 DECKFORGE_BEAUTIFY_CONCURRENCY，不必改代码。
@@ -407,7 +410,7 @@ def render_data_page(proj: Dict[str, Any], row: Dict[str, Any], content: Dict[st
 async def _generate_worker(job_id: str, proj: Dict[str, Any], rows: List[Dict[str, Any]],
                            page_nos: List[int], style: Dict[str, Any], style_pack_id: str,
                            size: str) -> None:
-    sem = asyncio.Semaphore(CONCURRENCY)
+    sem = asyncio.Semaphore(max(1, min(GENERATE_CONCURRENCY, len(page_nos) or 1)))
     done = 0
     failed = 0
     total = len(page_nos)

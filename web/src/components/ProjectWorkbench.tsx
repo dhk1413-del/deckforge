@@ -8,7 +8,7 @@ import { configureProject } from '../api'
  * 向导页（#/wizard 第 ⑤ 步）与项目工作台页（#/projects/:id）共用本组件。
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ApiError, SubmissionCancelled, restoreSlideVersion, getProjectJobs, cancelJob, generate, getSlides, reviewSlide, regenerateSlide } from '../api'
+import { ApiError, SubmissionCancelled, restoreSlideVersion, getProjectJobs, generate, getSlides, reviewSlide, regenerateSlide } from '../api'
 import { useJobStream } from '../hooks/useJobStream'
 import { useSlides } from '../hooks/useSlides'
 import { cn, ms } from '../lib/format'
@@ -16,7 +16,6 @@ import { Link } from '../router'
 import type { GenerationJob, Slide } from '../types'
 import { EditableWorkbench } from './EditableWorkbench'
 import { ActionBar, OverviewGrid, PageLightbox, PageRail, PagerArrow } from './FlowKit'
-import { ProgressPanel } from './ProgressPanel'
 import { EmptyState, ErrorState, Loading, Notice, NotConfiguredBanner } from './StateBlock'
 import { useToast } from './Toast'
 
@@ -66,7 +65,6 @@ export function ProjectWorkbench({
     onTabChange?.(t)
   }
 
-  const [cancelling, setCancelling] = useState(false)
   const [genInfo, setGenInfo] = useState<GenerationJob | null>(null)
   const [genJobId, setGenJobId] = useState<string | null>(null)
   const [recovering, setRecovering] = useState(true)
@@ -102,7 +100,7 @@ export function ProjectWorkbench({
       slidesState.reload()
       toast.info('任务处理结束，已刷新结果，请查看逐页状态')
     },
-    onCancelled: () => { setCancelling(false); slidesState.reload(); toast.success('已取消，已完成的部分已保留') },
+    onCancelled: () => { slidesState.reload(); toast.success('已取消，已完成的部分已保留') },
     onError: (m) => toast.error('生成失败', m),
   })
 
@@ -162,7 +160,6 @@ export function ProjectWorkbench({
         content_revisions:Object.fromEntries(latest.map(s=>[s.slide_id,s.content_revision || 1])),
       })
       setGenInfo(res)
-      setCancelling(false)
       setGenJobId(res.job_id)
       toast.info(`已提交重跑（${degradedPages.length} 页，之前被降级为本地渲染）`)
     } catch (e) {
@@ -186,7 +183,6 @@ export function ProjectWorkbench({
         content_revisions:Object.fromEntries(latest.map(s=>[s.slide_id,s.content_revision || 1])),
       })
       setGenInfo(res)
-      setCancelling(false)
       setGenJobId(res.job_id)
       if (!res.configured) {
         toast.warn('未配置生图模型，走本地兜底渲染', res.hint)
@@ -209,7 +205,6 @@ export function ProjectWorkbench({
       const latest=await getSlides(projectId)
       const res = await regenerateSlide(projectId, pageNoValue,Object.fromEntries(latest.map(s=>[s.slide_id,s.content_revision||1])))
       toast.info(`已提交第 ${pageNoValue} 页重生成`)
-      setCancelling(false)
       setGenJobId(res.job_id)
       slidesState.reload()
     } catch (e) {
@@ -385,17 +380,16 @@ export function ProjectWorkbench({
 
       {genStream.status === 'interrupted' && <Notice kind="warn">作业已中断：{genStream.message || '未返回具体中断原因，请刷新查询任务详情'}。已完成结果和历史版本保留；可通过下方逐页入口重新生成。</Notice>}
       {genStream.status === 'cancelled' && <p role="status">已取消，已完成的部分已保留</p>}
-      {genJobId && <ProgressPanel job={genStream} stageLabel="生成进度（SSE）" />}
 
       {resultView}
       {slides.length > 0 && currentSlide && <ActionBar>
         <PagerArrow dir="prev" disabled={currentIndex === 0} onClick={() => selectPage(currentIndex - 1)} />
         <span className="num">{currentSlide.page_no} / {slides.length}</span>
         <PagerArrow dir="next" disabled={currentIndex >= slides.length - 1} onClick={() => selectPage(currentIndex + 1)} />
-        <span className="text-ink-sub">已完成 <span className="num">{generatedPages.length}</span> / <span className="num">{slides.length}</span> 页</span>
+        <span className="text-ink-sub">{running
+          ? <><span className="beautify-live-dot" aria-hidden="true" />正在生成 <span className="num">{generatedPages.length}</span> / <span className="num">{slides.length}</span> 页</>
+          : <>已完成 <span className="num">{generatedPages.length}</span> / <span className="num">{slides.length}</span> 页</>}</span>
         {degradedPages.length > 0 && <button type="button" className="btn btn-secondary rounded-full" disabled={running} onClick={retryDegraded} title={`重新调用生图接口重跑第 ${degradedPages.join('、')} 页（会重新计费）`}>{submitting ? '提交中…' : `重跑降级页（${degradedPages.length}）`}</button>}
-        <button type="button" className="btn btn-secondary rounded-full" onClick={slidesState.reload} title="重新拉取 GET /api/projects/{id}/slides">刷新结果</button>
-        {genJobId && genStream.status === 'running' && <button type="button" className="btn btn-secondary rounded-full" disabled={cancelling} onClick={() => { setCancelling(true); void cancelJob(genJobId).catch((e: unknown) => { setCancelling(false); toast.error('取消失败', e instanceof Error ? e.message : String(e)) }) }}>{cancelling ? '正在取消…' : '取消生成'}</button>}
         <button type="button" className="btn btn-primary rounded-full" disabled={running || !stylePackId || !targetPages.length || slides.some(s => s.keep && !s.content_ready)} title={!stylePackId ? '未选择风格包：请先在向导里选择风格' : '提交 POST /api/projects/{id}/generate'} onClick={startGenerate}>{submitting ? '提交中…' : genJobId ? `重新生成参与页（${targetPages.length} 页）` : `生成参与页（${targetPages.length} 页）`}</button>
       </ActionBar>}
 
