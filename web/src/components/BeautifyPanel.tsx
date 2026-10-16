@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { cancelJob, beautifyOrigin, beautifyContinue, beautifyEditable, beautifyPreview, beautifyRegeneratePage, beautifyRestoreVersion, beautifyVersions, codexEngine, createProject, getBeautify, getProject, getProjectJobs, uploadSource, prepareBeautifyContent, saveBeautifyContent, type ApiError } from '../api'
+import { beautifyOrigin, beautifyContinue, beautifyEditable, beautifyPreview, beautifyRegeneratePage, beautifyRestoreVersion, beautifyVersions, codexEngine, createProject, getBeautify, getProject, getProjectJobs, uploadSource, prepareBeautifyContent, saveBeautifyContent, type ApiError } from '../api'
 import { IconFolder } from './Icons'
 import { Dropzone } from './Dropzone'
 import { ActionBar, FlowSteps, OverviewGrid, PageLightbox, PageRail, PageSelectGrid, PagerArrow, withVersion, type FlowStep } from './FlowKit'
@@ -97,7 +97,6 @@ export function BeautifyPanel({ packs, loadingPacks, onStepChange, resumeProject
   const [result, setResult] = useState<BeautifyStatus | null>(null)
   const [engine, setEngine] = useState<CodexEngineStatus | null>(null)
   const [engineError, setEngineError] = useState<string | null>(null)
-  const [cancelling, setCancelling] = useState(false)
   /* ⑤ 结果页：本页历史版本（预览 + 恢复）与本次优化信息 */
   const [regenInfo, setRegenInfo] = useState<{ pageNo: number; instruction: string } | null>(null)
   const [versionsOpen, setVersionsOpen] = useState(false)
@@ -109,7 +108,7 @@ export function BeautifyPanel({ packs, loadingPacks, onStepChange, resumeProject
     window.scrollTo({ top: 0 })
   }, [step, onStepChange])
   const stream = useJobStream(jobId, {
-    onCancelled: () => { setCancelling(false); setBusy(false); setStep(5); void refresh(true) },
+    onCancelled: () => { setBusy(false); setStep(5); void refresh(true) },
     onDone: () => { void refresh(true) },
     onError: (message) => { setError(message); setBusy(false); void refresh(true, message) },
   })
@@ -189,13 +188,6 @@ export function BeautifyPanel({ packs, loadingPacks, onStepChange, resumeProject
     }
   }
 
-  async function cancelCurrent() {
-    if (!jobId || cancelling) return
-    setCancelling(true)
-    try { await cancelJob(jobId) }
-    catch (e) { setError(errorDetail(e)); setCancelling(false) }
-  }
-
   function chooseFile(next: File) {
     if (busy) return
     if (!/\.(pptx|pdf)$/i.test(next.name)) { setError('请上传 PPTX 或 PDF'); return }
@@ -221,7 +213,6 @@ export function BeautifyPanel({ packs, loadingPacks, onStepChange, resumeProject
   async function startPreview() {
     if (!projectId || !selected.length || !packId || busy) return
     setBusy(true)
-    setCancelling(false)
     setError(null)
     setResult(null)
     setJobId(null)
@@ -328,7 +319,6 @@ export function BeautifyPanel({ packs, loadingPacks, onStepChange, resumeProject
   async function continueAll() {
     if (!projectId || busy || result?.phase !== 'preview') return
     setBusy(true)
-    setCancelling(false)
     setError(null)
     try {
       const firstPending = resultPages.findIndex(page => !page.beauty_url)
@@ -580,12 +570,7 @@ export function BeautifyPanel({ packs, loadingPacks, onStepChange, resumeProject
         {packId && <p className="m-0 text-body-sm text-ink-sub">当前风格：<span className="font-semibold text-primary">{packs.find(pack => pack.id === packId)?.name || packId}</span></p>}
       </>}
       {error && <div className="error-box text-body-sm" role="alert">{error}</div>}
-      {jobId && busy && stream.status === 'running' && <button type="button" className="btn btn-secondary self-start" disabled={cancelling} onClick={() => void cancelCurrent()}>{cancelling ? '正在取消，等待当前步骤结束…' : '取消生成'}</button>}
       {step === 5 && stream.status === 'cancelled' && <p role="status" className="text-body-sm">已取消，已完成的部分已保留</p>}
-      {step === 5 && <button type="button" className="link self-start" onClick={() => void refresh()}>刷新结果</button>}
-      {step === 5 && result?.phase !== 'done' && jobId && <div className="panel-alt text-body-sm">
-        这是所选页面中前 <span className="num">3</span> 页的美化图预览（不足 <span className="num">3</span> 页时展示全部页）。可编辑版**不会自动生成**：确认后先生成图片版，需要时再点「转文字可编辑版」。
-      </div>}
       {step === 5 && result && resultPages.length > 0 && <div className="deck-split">
         <PageRail label="结果页面列表" current={resultCurrentIndex} onSelect={(index) => { setResultIndex(index); setOverview(false) }}
           items={resultPages.map(page => {
