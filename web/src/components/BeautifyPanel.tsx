@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { cancelJob, beautifyOrigin, beautifyContinue, beautifyEditable, beautifyPreview, beautifyRegeneratePage, beautifyRestoreVersion, beautifyVersions, codexEngine, createProject, getBeautify, getProject, getProjectJobs, uploadSource, prepareBeautifyContent, saveBeautifyContent, type ApiError } from '../api'
 import { IconFolder } from './Icons'
 import { Dropzone } from './Dropzone'
-import { ProgressPanel } from './ProgressPanel'
 import { ActionBar, FlowSteps, OverviewGrid, PageLightbox, PageRail, PageSelectGrid, PagerArrow, withVersion, type FlowStep } from './FlowKit'
 import { useToast } from './Toast'
 import { useModalFocus } from '../hooks/useModalFocus'
@@ -342,6 +341,7 @@ export function BeautifyPanel({ packs, loadingPacks, onStepChange, resumeProject
     } catch (e) { setError(errorDetail(e)); setBusy(false) }
   }
 
+  /* 逐页状态来源：左栏「生成中」与结果卡片都读它（原先还给「美化生成进度」面板用，该面板已按批注移除） */
   const progress = {
     ...stream,
     message: stream.status === 'done' ? '作业已结束，请核对导出结果与警告' : stream.message,
@@ -582,7 +582,6 @@ export function BeautifyPanel({ packs, loadingPacks, onStepChange, resumeProject
       {error && <div className="error-box text-body-sm" role="alert">{error}</div>}
       {jobId && busy && stream.status === 'running' && <button type="button" className="btn btn-secondary self-start" disabled={cancelling} onClick={() => void cancelCurrent()}>{cancelling ? '正在取消，等待当前步骤结束…' : '取消生成'}</button>}
       {step === 5 && stream.status === 'cancelled' && <p role="status" className="text-body-sm">已取消，已完成的部分已保留</p>}
-      {step === 5 && jobId && (stream.status === 'running' || stream.status === 'error') && <ProgressPanel job={progress} stageLabel={result?.confirmed ? '全部页面生成进度' : '美化生成进度'} />}
       {step === 5 && <button type="button" className="link self-start" onClick={() => void refresh()}>刷新结果</button>}
       {step === 5 && result?.phase !== 'done' && jobId && <div className="panel-alt text-body-sm">
         这是所选页面中前 <span className="num">3</span> 页的美化图预览（不足 <span className="num">3</span> 页时展示全部页）。可编辑版**不会自动生成**：确认后先生成图片版，需要时再点「转文字可编辑版」。
