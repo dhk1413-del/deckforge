@@ -51,6 +51,39 @@ make hooks         # 新克隆启用 pre-commit / pre-push 密钥钩子（每个
 #     覆盖：上传 → 梳理 → 页面确认 → **内容确认** → 生成(SSE) → **逐页核对** → 导出 → 账本（后两步是导出的硬前置）
 ```
 
+## 发版流程
+
+版本号**唯一真源**是仓库根 `VERSION`：发版只改这一处；`web/package.json` 的 `version`（npm 要求字面量）
+与 `CHANGELOG.md` 首条由 `tools/check_version_sync.py` 强制对齐，`server/app/main.py` 直接读 `VERSION`
+（`GET /api/health` 的 `version` 即它），门禁里也会拦「main.py 又写死版本号」。
+
+```bash
+# 1) 改版本号（唯一真源）+ 同步前端包版本 + 写 CHANGELOG 首条
+#    VERSION / web/package.json / CHANGELOG.md
+# 2) 发版前检查
+make release-check        # 版本一致 + key 门禁（含全历史）
+make verify-fast          # 离线回归（注意：m5 目前有一处既有失败，见 CHANGELOG 已知问题）
+# 3) 提交推送
+git add -A && git commit -m "release: v$(cat VERSION)"
+git -c http.proxy=http://127.0.0.1:65532 push origin main
+# 4) 打附注标签（不可变）并推标签
+git tag -a v$(cat VERSION) -m "SlideCraft v$(cat VERSION)"
+git -c http.proxy=http://127.0.0.1:65532 push origin --follow-tags
+# 5) 建 Release：本机没装 gh，用网页 Releases → Draft a new release，说明粘 RELEASE_NOTES.md
+```
+
+规则：
+
+- **tag 不可变**：发布过的 tag 不要移动或复用。打错了先删本地+远端再重打，并在发布说明里讲清楚。
+- **Release 附件是公开可下载的**：只挂构建产物；**绝不挂 `.env`、数据库、`data/` 或任何含密钥/用户数据的文件**。
+  `tools/check_no_secrets.py` 只管 git 对象，**管不到 Release 附件**，这一步只能靠人守。
+- 版本语义（0.x 阶段）：修 bug → 补丁位；加功能 → 次版本位；改数据格式/配置且不兼容 → 次版本位并在
+  CHANGELOG 写明迁移步骤。1.0 之前的版本号不承诺兼容。
+- 分支策略：单人 0.x 阶段「直推 `main` + 打 tag」就够；等出现外部贡献者或多版本并行维护，再引入短生命
+  周期功能分支与发布分支。**不要提前上 git-flow**。
+- 许可证：AGPL-3.0（`LICENSE`）。改动依赖后要复核许可兼容（PyMuPDF 是 AGPL/商业双授权，是本项目选
+  AGPL 的直接原因）。
+
 ## 环境
 
 - 风格预览图：`style-packs/styles/<id>/previews/` 里放的就是各风格的真实样例页（随仓库公开）。

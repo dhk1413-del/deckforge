@@ -18,8 +18,10 @@ from fastapi.staticfiles import StaticFiles
 from . import operations, export_snapshots
 from . import (beautify, codex_engine, config, db, editppt_engine, page_import, pipeline, providers, slide_notes,
                source_pages, style_builder, stylepacks)
+from .paths import app_version
 
-VERSION = "0.1.0"
+# 版本号唯一真源是仓库根 `VERSION`（别在这里写死字面量；门禁 tools/check_version_sync.py 会拦）。
+VERSION = app_version()
 
 app = FastAPI(title="SlideCraft", version=VERSION)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])

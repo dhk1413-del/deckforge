@@ -12,6 +12,21 @@ CONFIG_DIR = os.path.join(ROOT, "config")
 STYLE_DIR = os.path.join(ROOT, "style-packs")
 UI_DIR = os.path.join(ROOT, "ui-design")
 ENV_FILES = [os.path.join(ROOT, ".env"), os.path.join(CONFIG_DIR, ".env")]
+VERSION_FILE = os.path.join(ROOT, "VERSION")
+
+
+def app_version() -> str:
+    """应用版本号：仓库根 `VERSION` 是**唯一真源**（发版时只改这一处）。
+
+    前端 `web/package.json` 的 `version` 受 npm 约束必须是字面量，无法直接引用本文件；
+    两者的同步由 `tools/check_version_sync.py` 在门禁里强制校验，不一致直接报错。
+    """
+    try:
+        with io.open(VERSION_FILE, encoding="utf-8") as fh:
+            value = fh.read().strip()
+    except OSError:
+        return "0.0.0"
+    return value or "0.0.0"
 
 
 def load_env() -> dict:

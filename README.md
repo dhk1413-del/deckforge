@@ -5,7 +5,9 @@
 
 没有配置任何模型密钥时，大纲走本地规则切页、出图走本地兜底渲染，费用为 0，流程和导出都能走通。
 
-下载地址：<https://github.com/dhk1413-del/slidecraft>
+当前版本 **v0.1.0** —— 仓库：<https://github.com/dhk1413-del/slidecraft> ·
+版本发布页（下载 / 变更说明）：<https://github.com/dhk1413-del/slidecraft/releases> ·
+变更记录见 [`CHANGELOG.md`](CHANGELOG.md)。
 
 ## 安装
 
@@ -99,6 +101,9 @@ make lint                       # 后端编译 + 前端 tsc
 ## 目录
 
 ```
+VERSION          版本号唯一真源（发版只改这里，门禁校验其余各处一致）
+CHANGELOG.md     变更记录（发版时必须写首条）
+LICENSE          AGPL-3.0 全文
 server/app/      FastAPI 后端：路由、流水线、渲染、导出、风格包、美化、备注、风格构建
 server/pptx/     原生可编辑 PPTX 渲染器（PptxGenJS），排版真源
 web/src/         React 前端
@@ -114,7 +119,30 @@ config/          供应商配置模板
 - 仓库里的界面截图取自中性演示数据；`style-packs/*/previews/` 里是各风格的真实样例页。
 - 渲染器和前端不写死业务文案；图表只画有真源的数据，没有就不画并标注来源。
 - 服务默认只监听 127.0.0.1，没有登录鉴权。
-- 仓库暂未附带开源许可证，对外分发前先补 `LICENSE`，并确认第三方依赖的许可兼容。
+
+## 版本
+
+版本号**唯一真源**是仓库根的 [`VERSION`](VERSION) 文件（当前 `0.1.0`）：
+
+- `server/app/main.py` 直接读它，`GET /api/health` 返回的 `version` 就是它；
+- `web/package.json` 的 `version` 受 npm 约束必须是字面量，由 `tools/check_version_sync.py` 在门禁里强制对齐（连同 `CHANGELOG.md` 首条版本一起校验），改漏一处就会报错；
+- 发版流程（改版本 → 写 CHANGELOG → 打 tag → 建 Release）见 [`AGENTS.md` 的发版流程](AGENTS.md#发版流程)。
+
+## 许可证
+
+本项目以 **GNU Affero General Public License v3.0（AGPL-3.0）** 发布，全文见 [`LICENSE`](LICENSE)。
+
+选 AGPL 而不是 MIT 的原因：本项目依赖 **PyMuPDF**（PDF 解析），它本身就是 **AGPL-3.0 / 商业双授权**——
+也就是说即使本项目用 MIT，只要打包了 PyMuPDF 就同样要承担 AGPL 的义务。既然如此，直接用 AGPL-3.0 是一致的。
+
+实际影响：
+
+- 自用（含公司内部自建）**不受限**；
+- 若你修改后**作为网络服务提供给他人使用**，AGPL §13 要求你向使用者提供修改后的完整源码；
+- 商业闭源集成需另行向 PyMuPDF 购买商业授权，或替换掉 PyMuPDF 依赖。
+
+主要第三方依赖的许可：PyMuPDF（AGPL-3.0/商业）、python-pptx / python-docx / FastAPI / Pillow / PyYAML（MIT 类）、
+uvicorn / httpx（BSD-3-Clause）、PptxGenJS / React（MIT）。分发前请自行复核一遍。
 
 ## 名称兼容
 
