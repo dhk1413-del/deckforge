@@ -785,6 +785,9 @@ export function WizardPage() {
           tab={tab}
           autoEditable={readQuery().auto === '1'}
           onTabChange={setTab}
+          /* ⑤确认设计：只给「生成前 3 页预览 → 确认设计」；⑥生成页面才放开全量（真门禁） */
+          stage={step === 6 ? 'generate' : 'design'}
+          onDesignConfirmed={() => goto(6)}
         />
       )}
       {(step === 5 || step === 6) && !projectId && (

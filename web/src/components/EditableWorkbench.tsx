@@ -12,7 +12,7 @@ import { useSlides } from '../hooks/useSlides'
 import { bytes, cn, pageNo } from '../lib/format'
 import type { EditableEngine, EditableResponse, EditpptStatus, ExportResponse, Slide } from '../types'
 import { ActionBar, PageLightbox } from './FlowKit'
-import { fmtSec, ProgressPanel } from './ProgressPanel'
+import { fmtSec } from './ProgressPanel'
 import { EmptyState, ErrorState, Loading, Notice } from './StateBlock'
 import { SlideThumb, ThumbGrid } from './ThumbGrid'
 import { useToast } from './Toast'
@@ -187,9 +187,6 @@ export function EditableWorkbench({ projectId, autoStart = false }: { projectId:
           <span className="status status-success num">已转 P{convertedPages.map((n) => pageNo(n)).join('、P')}</span>
         )}
         <span className="flex-1" />
-        <button type="button" className="btn btn-secondary h-8! text-body-sm" onClick={slidesState.reload}>
-          刷新
-        </button>
       </div>
 
       {slidesState.loading && !slides.length ? (
@@ -347,7 +344,6 @@ export function EditableWorkbench({ projectId, autoStart = false }: { projectId:
     <div className="flex flex-col gap-4">
       {engineBanner}
       {editError && <ErrorState error={editError} onRetry={() => start()} title="提交转换失败" />}
-      {editJobId && <ProgressPanel job={stream} stageLabel="精细重建进度（SSE）" />}
       {grid}
       {artifactCard}
       <p className="m-0 text-caption text-ink-sub">

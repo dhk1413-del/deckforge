@@ -44,6 +44,10 @@ export interface ProjectWorkbenchProps {
   onTabChange?: (tab: 'generate' | 'editable') => void
   /** 首页模式② 一键流：进入即自动勾选并开始逐页精细重建（同一标签会话只触发一次） */
   autoEditable?: boolean
+  /** 向导⑤确认设计：只允许「生成前 N 页预览 + 确认设计」；⑥生成页面才放开全量（真门禁的另一半） */
+  stage?: 'design' | 'generate'
+  /** 在⑤点「确认设计，进入生成页面」时回调（向导据此进第⑥步） */
+  onDesignConfirmed?: () => void
 }
 
 export function ProjectWorkbench({
@@ -55,6 +59,8 @@ export function ProjectWorkbench({
   tab: controlledTab,
   onTabChange,
   autoEditable = false,
+  stage = 'generate',
+  onDesignConfirmed,
 }: ProjectWorkbenchProps) {
   const toast = useToast()
   const [size, setSize] = useState<string>(SIZES.includes(defaultSize as '2K') ? defaultSize : '2K')
@@ -171,7 +177,8 @@ export function ProjectWorkbench({
     }
   }
 
-  async function startGenerate() {
+  async function startGenerate(pageOverride?: number[]) {
+    const pagesToRun = pageOverride?.length ? pageOverride : targetPages
     setSubmitting(true)
     setGenError(null)
     try {
@@ -179,7 +186,7 @@ export function ProjectWorkbench({
       const res = await generate(projectId, {
         style_pack_id: stylePackId ?? '',
         size,
-        page_nos: targetPages,
+        page_nos: pagesToRun,
         content_revisions:Object.fromEntries(latest.map(s=>[s.slide_id,s.content_revision || 1])),
       })
       setGenInfo(res)
@@ -187,7 +194,7 @@ export function ProjectWorkbench({
       if (!res.configured) {
         toast.warn('未配置生图模型，走本地兜底渲染', res.hint)
       } else {
-        toast.info(`已提交生成任务（${targetPages.length} 页）`)
+        toast.info(`已提交生成任务（${pagesToRun.length} 页）`)
       }
     } catch (e) {
       if (e instanceof SubmissionCancelled) { toast.info('已取消，未提交'); return }
@@ -310,6 +317,11 @@ export function ProjectWorkbench({
         </>
 
   /* ---------------- ⑤ 生成面板 ---------------- */
+  /** 设计阶段（向导⑤）：先跑前 3 页预览，确认设计后才放行全量生成 */
+  const designStage = stage === 'design'
+  const previewPages = targetPages.slice(0, Math.min(3, targetPages.length))
+  const previewReady = generatedPages.length > 0
+
   const generatePanel = (
     <div className="flex flex-col gap-4">
       <div className="card">
@@ -390,7 +402,13 @@ export function ProjectWorkbench({
           ? <><span className="beautify-live-dot" aria-hidden="true" />正在生成 <span className="num">{generatedPages.length}</span> / <span className="num">{slides.length}</span> 页</>
           : <>已完成 <span className="num">{generatedPages.length}</span> / <span className="num">{slides.length}</span> 页</>}</span>
         {degradedPages.length > 0 && <button type="button" className="btn btn-secondary rounded-full" disabled={running} onClick={retryDegraded} title={`重新调用生图接口重跑第 ${degradedPages.join('、')} 页（会重新计费）`}>{submitting ? '提交中…' : `重跑降级页（${degradedPages.length}）`}</button>}
-        <button type="button" className="btn btn-primary rounded-full" disabled={running || !stylePackId || !targetPages.length || slides.some(s => s.keep && !s.content_ready)} title={!stylePackId ? '未选择风格包：请先在向导里选择风格' : '提交 POST /api/projects/{id}/generate'} onClick={startGenerate}>{submitting ? '提交中…' : genJobId ? `重新生成参与页（${targetPages.length} 页）` : `生成参与页（${targetPages.length} 页）`}</button>
+        {designStage ? (
+          previewReady
+            ? <button type="button" className="btn btn-primary rounded-full" disabled={running} title="设计已确认，进入第⑥步生成全部页面" onClick={() => onDesignConfirmed?.()}>{running ? '生成中…' : '确认设计，进入生成页面 ›'}</button>
+            : <button type="button" className="btn btn-primary rounded-full" disabled={running || !stylePackId || !previewPages.length || slides.some(s => s.keep && !s.content_ready)} title={!stylePackId ? '未选择风格包：请先在向导里选择风格' : `先跑前 ${previewPages.length} 页预览，确认后再生成全部页面`} onClick={() => void startGenerate(previewPages)}>{submitting ? '提交中…' : `生成前 ${previewPages.length} 页预览`}</button>
+        ) : (
+          <button type="button" className="btn btn-primary rounded-full" disabled={running || !stylePackId || !targetPages.length || slides.some(s => s.keep && !s.content_ready)} title={!stylePackId ? '未选择风格包：请先在向导里选择风格' : '提交 POST /api/projects/{id}/generate'} onClick={() => void startGenerate()}>{submitting ? '提交中…' : genJobId ? `重新生成参与页（${targetPages.length} 页）` : `生成参与页（${targetPages.length} 页）`}</button>
+        )}
       </ActionBar>}
 
 
