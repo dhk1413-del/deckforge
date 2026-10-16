@@ -240,14 +240,28 @@ export interface OutlinePage {
   role: string
   outline: string
   points: string[]
+  /** 该页所属章节号（1 起；后端按素材真实标题层级归纳） */
+  chapter_no?: number
+  chapter_title?: string
+}
+
+/** 章节区间汇总：大纲编辑器左侧章节栏用之（页码为真实页序） */
+export interface OutlineChapter {
+  chapter_no: number
+  title: string
+  page_from: number
+  page_to: number
+  page_count: number
 }
 
 export interface OutlineResponse {
   pages: OutlinePage[]
+  chapters?: OutlineChapter[]
   /** 无 DeepSeek key 时为 false + fellback: "local_split" */
   configured?: boolean
   reason?: string
   hint?: string
+  fallback?: string
   fellback?: string
 }
 
@@ -258,6 +272,9 @@ export interface PageEditItem {
   title: string
   keep: boolean
   layout: LayoutKey
+  /** 章节归属：大纲编辑器里可改，随 PUT /pages 一并落库 */
+  chapter_no?: number
+  chapter_title?: string
 }
 
 export interface PagesPayload {
@@ -298,6 +315,9 @@ export interface Slide {
   layout?: string
   outline?: string
   points?: string[]
+  /** 所属章节（幻灯片行自带的章节列，用于大纲编辑器分栏） */
+  chapter_no?: number
+  chapter_title?: string
 
   page_no: number
   title: string

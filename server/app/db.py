@@ -140,7 +140,8 @@ def _migrate(conn: sqlite3.Connection) -> None:
                    "source_available": "INTEGER DEFAULT 1", "content_revision": "INTEGER DEFAULT 1", "generated_revision": "INTEGER",
                    "modules_json": "TEXT DEFAULT '[]'", "source_note": "TEXT DEFAULT ''",
                    "source_content_json": "TEXT", "material_strategy": "TEXT DEFAULT 'reference'",
-                   "generated_style": "TEXT", "generated_content_json": "TEXT", "reviewed_image": "TEXT"},
+                   "generated_style": "TEXT", "generated_content_json": "TEXT", "reviewed_image": "TEXT",
+                   "chapter_no": "INTEGER DEFAULT 0", "chapter_title": "TEXT DEFAULT ''"},
     }.items():
         existing = {r["name"] for r in conn.execute("PRAGMA table_info(%s)" % table)}
         for name, ddl in additions.items():

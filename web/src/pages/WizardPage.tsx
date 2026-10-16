@@ -10,14 +10,13 @@ import {
   createProject,
   getProject, getProjectJobs, getSlides, configureProject,
   getSourcePages,
-  listLayouts,
   listStylePacks,
   postOutline,
   putPages,
   uploadSource,
   ApiError,
 } from '../api'
-import { ActionBar, FlowSteps, PageSelectGrid } from '../components/FlowKit'
+import { ActionBar, FlowSteps } from '../components/FlowKit'
 import { ContentEditor } from '../components/ContentEditor'
 import { Dropzone } from '../components/Dropzone'
 import { useTextReady } from '../components/ProviderStatus'
@@ -27,23 +26,13 @@ import { SlidePreview } from '../components/SlidePreview'
 import { EmptyState, ErrorState, Loading, Notice, NotConfiguredBanner } from '../components/StateBlock'
 import { StylePackCard } from '../components/StylePackCard'
 import { WIZARD_STEPS, type WizardStepNo } from '../components/Steps'
+import { OutlineEditor } from '../components/OutlineEditor'
 import { useToast } from '../components/Toast'
 import { Link, navigate, readQuery, registerLeaveGuard, useRoute } from '../router'
 import { takePendingFile } from '../pendingFile'
 import { useAsync } from '../hooks/useAsync'
 import { cn, pageNo as padPageNo } from '../lib/format'
-import type { LayoutInfo, OutlinePage, Slide, SourcePagesResponse, SourceType, UploadResponse } from '../types'
-
-/** 离线兜底布局清单（与契约 /api/layouts 示例一致，后端不可用时仍可编辑页清单） */
-const LAYOUT_FALLBACK: LayoutInfo[] = [
-  { key: 'cover', title: '封面', best_for: '整册首页', slots: ['title', 'subtitle', 'meta'] },
-  { key: 'section', title: '章节页', best_for: '分段过渡', slots: ['title', 'subtitle'] },
-  { key: 'cards_4', title: '四卡要点', best_for: '并列要点', slots: ['title', 'items'] },
-  { key: 'comparison_2col', title: '左右对比', best_for: '方案对比', slots: ['title', 'left', 'right'] },
-  { key: 'data_chart', title: '数据图表', best_for: '指标展示', slots: ['title', 'chart', 'caption'] },
-  { key: 'timeline', title: '时间线', best_for: '流程/历程', slots: ['title', 'milestones'] },
-  { key: 'summary', title: '总结页', best_for: '收尾', slots: ['title', 'points'] },
-]
+import type { OutlinePage, Slide, SourcePagesResponse, SourceType, UploadResponse } from '../types'
 
 // 大 PPTX（几十 MB）转 PDF 明显更慢，15 秒等不完；放宽到约 60 秒仍是有界轮询
 const SOURCE_PAGE_RETRY_LIMIT = 40
@@ -61,6 +50,9 @@ interface PageDraft {
   points: string[]
   keep: boolean
   layout: string
+  /** 所属章节（后端按素材真实标题层级归纳；大纲编辑器按它分栏） */
+  chapter_no?: number
+  chapter_title?: string
 }
 
 const ACCEPT = '.md,.markdown,.txt,.docx,.pdf,.pptx'
@@ -90,6 +82,8 @@ function draftPages(count: number): PageDraft[] {
       points: [],
       keep: true,
       layout: no === 1 ? 'cover' : no === n ? 'summary' : 'cards_4',
+      chapter_no: 1,
+      chapter_title: '',
     }
   })
 }
@@ -136,9 +130,7 @@ export function WizardPage() {
   const [previewing, setPreviewing] = useState<string | null>(null)
 
   const reachedStep4 = true
-  const layoutsAsync = useAsync(listLayouts, [], reachedStep4)
   const packsAsync = useAsync(listStylePacks, [], reachedStep4)
-  const layouts = layoutsAsync.data?.items?.length ? layoutsAsync.data.items : LAYOUT_FALLBACK
   const packs = packsAsync.data?.items ?? []
   const [category, setCategory] = useState('全部')
 
@@ -172,9 +164,10 @@ export function WizardPage() {
         const draft = project.page_drafts?.find(p => p.page_no === slide.page_no)
         return { slide_id: slide.slide_id, content_revision:slide.content_revision, source_page_no:slide.source_page_no, valid: slide.source_available !== 0, page_no: slide.page_no, title: slide.title,
           role: slide.role || 'content', outline: slide.outline || '', points: slide.points || [],
-          keep: draft?.keep ?? Boolean(slide.keep), layout: draft?.layout || slide.layout || 'cards_4' }
+          keep: draft?.keep ?? Boolean(slide.keep), layout: draft?.layout || slide.layout || 'cards_4',
+          chapter_no: draft?.chapter_no ?? slide.chapter_no ?? 0, chapter_title: draft?.chapter_title ?? slide.chapter_title ?? '' }
       }) : project.page_drafts?.length ? project.page_drafts.map(p => ({ ...p, role: 'content', outline: '', points: [] })) : draftPages(count))
-      setOutline(slides.length ? slides.map(p => ({page_no: p.page_no, title:p.title, role:p.role || 'content', outline:p.outline || '', points:p.points || []})) : null)
+      setOutline(slides.length ? slides.map(p => ({page_no: p.page_no, title:p.title, role:p.role || 'content', outline:p.outline || '', points:p.points || [], chapter_no: p.chapter_no || 0, chapter_title: p.chapter_title || ''})) : null)
       setPagesConfirmed(Boolean(project.pages_confirmed))
       setContentConfirmed(Boolean(project.content_confirmed))
       setStylePackId(project.style_pack_id || readQuery().style || null)
@@ -264,7 +257,7 @@ export function WizardPage() {
     window.addEventListener('focus',refresh)
     return()=>{window.clearInterval(poll);window.removeEventListener('focus',refresh)}
   },[projectId])
-  function pagePayload(next:PageDraft[]) {return next.map(p=>({page_no:p.page_no,title:p.title,keep:p.keep,layout:p.layout,revision:p.content_revision}))}
+  function pagePayload(next:PageDraft[]) {return next.map(p=>({page_no:p.page_no,title:p.title,keep:p.keep,layout:p.layout,revision:p.content_revision,chapter_no:p.chapter_no ?? 0,chapter_title:p.chapter_title ?? ''}))}
   async function persistPages(next: PageDraft[]) {
     setPages(next)
     return saveConfig({page_drafts:pagePayload(next)})
@@ -420,15 +413,7 @@ export function WizardPage() {
     setPagesError(null)
     try {
       if(!await flushConfig())return
-      await putPages(projectId, {
-        pages: pages.map((p) => ({
-          page_no: p.page_no,
-          title: p.title,
-          keep: p.keep,
-          layout: p.layout,
-          revision:p.content_revision,
-        })),
-      })
+      await putPages(projectId, { pages: pagePayload(pages) })
       setPagesConfirmed(true)
       setContentConfirmed(false)
       setTargetPages(keptPages.length)
@@ -475,6 +460,8 @@ export function WizardPage() {
             role: op.role || existing?.role || 'content',
             outline: op.outline ?? '',
             points: op.points ?? [],
+            chapter_no: op.chapter_no ?? existing?.chapter_no ?? 0,
+            chapter_title: op.chapter_title ?? existing?.chapter_title ?? '',
             keep: existing?.keep ?? true,
             layout: existing?.layout ?? (op.page_no === 1 ? 'cover' : 'cards_4'),
           }
@@ -536,152 +523,15 @@ export function WizardPage() {
     </div>
   )
 
-  const pagesStep = (
-    <div className="flex flex-col gap-4">
-      <div className="card">
-        <div className="flex flex-wrap items-center gap-3">
-          <h2 className="card-title m-0! text-h3">页面确认</h2>
-          <span className="tag num">
-            {parsed ? `${parsed.char_count} 字` : '—'}
-          </span>
-          <span className="status status-info">
-            保留 <span className="num">{keptPages.length}</span> / {pages.length} 页
-          </span>
-          <span className="flex-1" />
-          <label className="flex items-center gap-2">
-            <span className="metric-label">目标页数</span>
-            <input
-              className="input num w-20"
-              type="number"
-              min={1}
-              max={80}
-              value={targetPages}
-              onChange={(e) => setTargetPages(Number(e.target.value) || 1)}
-              onBlur={() => void saveConfig({target_pages: targetPages})}
-            />
-          </label>
-          <button
-            type="button"
-            className="btn btn-secondary h-8! text-body-sm"
-            onClick={async () => { if (!projectId) return; if (await saveConfig({target_pages: targetPages})) await runOutline() }}
-            disabled={outlining} title="按目标页数梳理页清单"
-          >
-            重建清单
-          </button>
-        </div>
-
-        <p className="card-desc mt-2">
-          取消勾选仅排除本次任务，原稿仍保留。请核对原稿页号、可用状态与素材策略。
-        </p>
-
-        {parsed?.warnings && parsed.warnings.length > 0 && (
-          <div className="mb-3">
-            <Notice kind="warn">解析告警：{parsed.warnings.join('；')}</Notice>
-          </div>
-        )}
-
-        {sourceType === 'pptx' && (
-          <section className="mb-4 rounded-lg border border-divider bg-surface-alt p-3" aria-label="原稿逐页缩略图">
-            <div className="flex flex-wrap items-center gap-2">
-              <h3 className="m-0 text-body-sm font-semibold">原稿逐页缩略图</h3>
-              <span className="status status-info num">
-                原稿 {sourcePages?.ready ? sourcePages.page_count : '—'} 页 / 目标 {pages.length} 页
-              </span>
-              <span className="text-caption text-ink-sub">原稿预览；任务范围以下方页面卡片为准</span>
-            </div>
-            {sourcePages?.ready ? (
-              <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6">
-                {sourcePages.pages.map((page, index) => (
-                  <button
-                    key={page.page_no}
-                    type="button"
-                    className="group overflow-hidden rounded-md border border-border bg-surface text-left shadow-sm transition hover:border-[var(--color-accent)]"
-                    onClick={() => openSourcePreview(index)}
-                    title={`查看原稿 P${String(page.page_no).padStart(2, '0')} 大图`}
-                  >
-                    <img
-                      src={page.thumb_url}
-                      alt={`原稿 P${String(page.page_no).padStart(2, '0')}`}
-                      loading="lazy"
-                      className="block aspect-video w-full object-cover"
-                    />
-                    <span className="block px-2 py-1 text-caption text-ink-sub num group-hover:text-ink">
-                      原稿 P{String(page.page_no).padStart(2, '0')}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            ) : sourcePages?.error ? (
-              <p className="mb-0 mt-2 text-body-sm text-ink-sub">原页缩略图不可用（不影响生成）</p>
-            ) : (
-              <p className="mb-0 mt-2 text-body-sm text-ink-sub">原页缩略图生成中…</p>
-            )}
-          </section>
-        )}
-
-        <PageSelectGrid
-          pages={pages.map(p => ({
-            pageNo: p.page_no,
-            image: sourcePages?.pages.find(x => x.page_no === p.source_page_no)?.thumb_url,
-            alt: `原稿第 ${p.source_page_no} 页`,
-            disabled: p.valid === false,
-            emptyText: p.source_page_no ? '原稿缩略图暂不可用' : '文档内容页 · 无可验证的原稿页映射',
-          }))}
-          selected={pages.filter(p => p.keep).map(p => p.page_no)}
-          showRemove={false}
-          onToggle={pageNo => void persistPages(pages.map(p => p.page_no === pageNo ? {...p, keep: !p.keep} : p))}
-          onZoom={pageNo => {
-            const p = pages.find(p => p.page_no === pageNo)
-            const original = sourcePages?.pages.find(x => x.page_no === p?.source_page_no)
-            if (original?.thumb_url) openSourcePreview(sourcePages!.pages.indexOf(original))
-          }}
-          zoomLabel={pageNo => `查看原稿 P${String(pages.find(p => p.page_no === pageNo)?.source_page_no).padStart(2, '0')} 大图`}
-          renderRow={pageNo => {
-            const idx = pages.findIndex(p => p.page_no === pageNo)
-            const p = pages[idx]
-            return <div className="p-3">
-              <div className="flex gap-2 mt-2"><span className="num">{p.source_page_no?`源页 ${p.source_page_no}`:`内容页 ${p.page_no}`}</span><span>{p.valid===false?'不可用':'可用'}</span></div>
-              <label className="block mt-2">标题<input className="input w-full" value={p.title} onChange={e=>{const next=pages.map((x,i)=>i===idx?{...x,title:e.target.value}:x);setPages(next);stageConfig({page_drafts:pagePayload(next)})}} onBlur={()=>void persistPages(pages)}/></label>
-              <label className="block mt-2">布局<select className="input w-full" value={p.layout} onChange={e=>void persistPages(pages.map((x,i)=>i===idx?{...x,layout:e.target.value}:x))}>{layouts.map(l=><option key={l.key} value={l.key}>{l.title}</option>)}</select></label>
-              <p className="text-caption">素材策略：{p.keep?'原稿内容作为参考；重新排版，不能保证原图完整保留':'未应用（此页已排除）'}</p>
-            </div>
-          }}
-        />
-
-        {pagesError && (
-          <div className="mt-3">
-            <ErrorState compact error={pagesError} onRetry={savePages} title="保存页清单失败" />
-          </div>
-        )}
-        <ActionBar>
-          <span className="font-semibold">已选 <span className="num text-primary">{keptPages.length}</span> / <span className="num">{pages.length}</span> 页</span>
-          <button className="btn btn-secondary" onClick={() => void persistPages(pages.map(p=>({...p,keep:p.valid !== false})))}>全选有效页</button>
-          <button className="btn btn-secondary" onClick={() => void persistPages(pages.map(p=>({...p,keep:false})))}>取消全选</button>
-          <button
-            type="button"
-            className="btn btn-primary rounded-full px-6"
-            disabled={savingPages || !keptPages.length || !projectId}
-            title={
-              !projectId
-                ? '还没有项目：先上传原稿'
-                : !keptPages.length
-                  ? '至少保留 1 页'
-                  : '保存页清单并进入内容梳理'
-            }
-            onClick={savePages}
-          >
-            {!keptPages.length ? '请至少选择一页' : savingPages ? '保存中…' : '保存页清单并继续'}
-          </button>
-          <button type="button" className="btn btn-secondary" onClick={() => goto(1)}>
-            ‹ 回到上传
-          </button>
-          <span className="text-caption text-ink-sub">
-            布局清单来自 <span className="num">GET /api/layouts</span>
-            {layoutsAsync.error ? '（后端不可用，当前为内置兜底布局）' : ''}
-          </span>
-        </ActionBar>
-      </div>
-    </div>
+  /* ② 编辑大纲：章节 + 页面卡片 + 编辑弹窗（组件自管视觉态，数据改动写回 pages） */
+  const outlineEditorStep = (
+    <OutlineEditor
+      pages={pages}
+      busy={taskRunning || savingPages}
+      onChange={setPages}
+      onRegenerate={() => void runOutline()}
+      onContinue={() => void savePages()}
+    />
   )
 
   const outlineStep = outlining && !outline ? (
@@ -871,9 +721,10 @@ export function WizardPage() {
 
   const locked: Record<number, string | undefined> = {
     2: projectId && (parsed || pages.length) ? undefined : '先输入内容',
-    3: pagesConfirmed ? undefined : '先完成页面确认',
-    4: contentConfirmed ? undefined : '先完成内容确认',
-    5: hasResults || (contentConfirmed && stylePackId) ? undefined : !contentConfirmed ? '先完成内容确认' : '先选择风格',
+    3: pagesConfirmed ? undefined : '先完成编辑大纲',
+    4: contentConfirmed ? undefined : '先完成内容梳理',
+    5: hasResults || (contentConfirmed && stylePackId) ? undefined : !contentConfirmed ? '先完成内容梳理' : '先选择风格',
+    6: hasResults ? undefined : '先在⑤确认设计：生成前 3 页预览并确认',
   }
   if (restoring) return <Loading rows={4} label="加载项目工作台…" />
   if (restoreError) return <ErrorState error={restoreError} title="项目加载失败" />
@@ -915,11 +766,16 @@ export function WizardPage() {
       {locked[step] && <Notice kind="warn">{locked[step]}</Notice>}
       {step === 1 && uploadStep}
       {taskRunning&&step<5&&<Notice kind="info">任务运行中，页面范围与整册风格配置暂不能修改。可通过步骤导航查看已有结果。</Notice>}
-      {step === 2 && !locked[2] && <fieldset disabled={taskRunning} title={taskRunning?'任务运行中，页面配置暂不能修改':undefined}>{outline ? pagesStep : outlineStep}</fieldset>}
+      {step === 2 && !locked[2] && <fieldset disabled={taskRunning} title={taskRunning?'任务运行中，大纲暂不能修改':undefined}>
+        {outline ? <>
+          {outlineEditorStep}
+          {pagesError && <ErrorState compact error={pagesError} onRetry={savePages} title="保存大纲失败" />}
+        </> : outlineStep}
+      </fieldset>}
       {step === 3 && !locked[3] && projectId && <ContentEditor key={projectId} projectId={projectId} onSaveState={setContentSaveState} onConfirmed={()=>{setContentConfirmed(true);goto(4)}} onExclude={async no=>{const next=pages.map(p=>p.page_no===no?{...p,keep:false}:p);const fresh=await getSlides(projectId);const updated=next.map(p=>({...p,title:fresh.find(s=>s.page_no===p.page_no)?.title||p.title,content_revision:fresh.find(s=>s.page_no===p.page_no)?.content_revision}));if(!await persistPages(updated))throw new Error('保存失败，请重试');if(updated.some(p=>p.keep)){await putPages(projectId,{pages:updated});setPagesConfirmed(true)}}}/>}
       {step === 4 && !locked[4] && <fieldset disabled={taskRunning} title={taskRunning?'任务运行中，风格暂不能修改':undefined}>{styleStep}</fieldset>}
       {/* 同槽位渲染同一个实例：⑤⑥ 之间切步骤时不丢勾选/进度状态 */}
-      {(step === 5) && !locked[5] && projectId && (
+      {(step === 5 || step === 6) && !locked[step] && projectId && (
         <ProjectWorkbench
           projectId={projectId}
           stylePackId={stylePackId}
@@ -931,7 +787,7 @@ export function WizardPage() {
           onTabChange={setTab}
         />
       )}
-      {(step === 5) && !projectId && (
+      {(step === 5 || step === 6) && !projectId && (
         <div className="card">
           <EmptyState
             title="还没有项目"

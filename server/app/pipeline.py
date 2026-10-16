@@ -217,10 +217,34 @@ def parse_file(path: str, filename: str) -> str:
 
 # ────────────────────────── 大纲 ──────────────────────────
 
-OUTLINE_SYS = ("你是资深 PPT 内容架构师。把用户给的素材整理成逐页大纲。"
-               "严格输出 JSON 数组，每项 {\"title\":\"页标题(≤18字)\",\"role\":\"cover|section|content|data|summary\","
+OUTLINE_SYS = ("你是资深 PPT 内容架构师。把用户给的素材整理成「分章 + 逐页」大纲。"
+               "严格输出 JSON 数组，每项是一章："
+               "{\"chapter\":\"章节标题(≤14字)\","
+               "\"pages\":[{\"title\":\"页标题(≤18字)\",\"role\":\"cover|section|content|data|summary\","
                "\"outline\":\"一句话说明这页讲什么\",\"points\":[\"要点1\",\"要点2\"],"
-               "\"must_keep\":[\"必须原样保留的数字或专有名词\"]}。不要额外解释，不要 markdown 代码块。")
+               "\"must_keep\":[\"必须原样保留的数字或专有名词\"]}]}。"
+               "章节标题只能来自素材里真实的标题层级（例如「一、」「第X章」「1.1」或小标题原文），"
+               "**不得自己编造章节名**；素材没有明显章节时，把全部页放进一章，章节名用素材标题或「正文」。"
+               "不要额外解释，不要 markdown 代码块。")
+
+
+# 章节级标题（真实标题层级）：#/##、第X章、一、；而 ###/####、1.1 只作为章内分页
+CHAPTER_HEAD = re.compile(r"^(#{1,2}\s|第[一二三四五六七八九十]+[章部分]|[一二三四五六七八九十]+、)")
+
+
+def chapter_summary(pages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """按页上的 chapter_no/chapter_title 归纳出章节区间，供大纲编辑器左侧章节栏使用。"""
+    out: List[Dict[str, Any]] = []
+    for page in pages:
+        no = int(page.get("chapter_no") or 1)
+        title = str(page.get("chapter_title") or "").strip() or ("第 %d 章" % no)
+        page_no = int(page.get("page_no") or 0)
+        if out and out[-1]["chapter_no"] == no:
+            out[-1]["page_to"] = page_no
+            out[-1]["page_count"] += 1
+        else:
+            out.append(dict(chapter_no=no, title=title, page_from=page_no, page_to=page_no, page_count=1))
+    return out
 
 
 def local_split(text: str, target_pages: int) -> List[Dict[str, Any]]:
@@ -244,14 +268,20 @@ def local_split(text: str, target_pages: int) -> List[Dict[str, Any]]:
         blocks = [[text]]
 
     pages: List[Dict[str, Any]] = []
+    chapter_no, chapter_title = 0, ""
     for i, blk in enumerate(blocks):
         head = re.sub(r"^#+\s*", "", blk[0])[:18]
+        # 真实标题层级决定归章：第 1 块起章，之后遇到章节级标题再起新章
+        if i == 0 or CHAPTER_HEAD.match(blk[0].strip()):
+            chapter_no += 1
+            chapter_title = (head or ("第 %d 章" % chapter_no))[:24]
         pts = [re.sub(r"^[-*·\d.]+\s*", "", x)[:40] for x in blk[1:5]]
         nums = re.findall(r"\d+(?:\.\d+)?%?|[A-Z]{2,}", " ".join(blk))[:6]
         role = "cover" if i == 0 else ("summary" if i == len(blocks) - 1 else "content")
         pages.append(dict(page_no=i + 1, title=head or "第 %d 页" % (i + 1), role=role,
                           outline=(blk[1][:60] if len(blk) > 1 else head), points=pts or [head],
-                          must_keep=sorted(set(nums))[:6], layout=("cover" if i == 0 else LAYOUT_CYCLE[(i) % len(LAYOUT_CYCLE)])))
+                          must_keep=sorted(set(nums))[:6], layout=("cover" if i == 0 else LAYOUT_CYCLE[(i) % len(LAYOUT_CYCLE)]),
+                          chapter_no=chapter_no or 1, chapter_title=chapter_title or "正文"))
     if target_pages and len(pages) > target_pages:
         pages = pages[:target_pages]
     for i, p in enumerate(pages, 1):
@@ -271,30 +301,55 @@ def build_outline(text: str, target_pages: int) -> Dict[str, Any]:
     ok, content, meta = providers.call_text(OUTLINE_SYS, (text or "")[:12000])
     if not ok:
         pages = local_split(text, target_pages)
-        return dict(pages=pages, configured=False, fellback="local_split",
+        return dict(pages=pages, chapters=chapter_summary(pages), configured=False, fellback="local_split",
                     hint="未配置 DeepSeek key：已按本地规则切页（%d 页）。到「设置」填入 key 后可用 LLM 梳理。" % len(pages),
                     provider="local_split", model="local", cost_cny=0.0)
     try:
         raw = content.strip()
         raw = re.sub(r"^```(?:json)?|```$", "", raw, flags=re.M).strip()
         data = json.loads(raw)
-        pages = []
-        for i, p in enumerate(data[: max(1, target_pages or len(data))], 1):
-            pages.append(dict(page_no=i, title=str(p.get("title", ""))[:40],
-                              role=p.get("role", "content"), outline=str(p.get("outline", ""))[:200],
-                              points=[str(x)[:60] for x in (p.get("points") or [])][:6],
-                              must_keep=[str(x)[:30] for x in (p.get("must_keep") or [])][:8],
-                              layout=("cover" if i == 1 else LAYOUT_CYCLE[i % len(LAYOUT_CYCLE)])))
+        if not isinstance(data, list):
+            raise ValueError("顶层不是数组")
+
+        # 新格式：每项是一章 {chapter, pages:[...]}；旧格式（扁平页数组）兼容成单章
+        groups: List[tuple] = []
+        if any(isinstance(item, dict) and isinstance(item.get("pages"), list) for item in data):
+            for item in data:
+                if not isinstance(item, dict):
+                    continue
+                plist = [x for x in (item.get("pages") or []) if isinstance(x, dict)]
+                if plist:
+                    groups.append((str(item.get("chapter") or item.get("title") or "").strip()[:24], plist))
+        else:
+            flat = [x for x in data if isinstance(x, dict)]
+            if flat:
+                groups.append(("", flat))
+
+        pages: List[Dict[str, Any]] = []
+        for chapter_no, (chapter_title, plist) in enumerate(groups, 1):
+            if target_pages and len(pages) >= target_pages:
+                break
+            for p in plist:
+                if target_pages and len(pages) >= target_pages:
+                    break
+                i = len(pages) + 1
+                pages.append(dict(page_no=i, title=str(p.get("title", ""))[:40],
+                                  role=p.get("role", "content"), outline=str(p.get("outline", ""))[:200],
+                                  points=[str(x)[:60] for x in (p.get("points") or [])][:6],
+                                  must_keep=[str(x)[:30] for x in (p.get("must_keep") or [])][:8],
+                                  layout=("cover" if i == 1 else LAYOUT_CYCLE[i % len(LAYOUT_CYCLE)]),
+                                  chapter_no=chapter_no,
+                                  chapter_title=(chapter_title or ("正文" if len(groups) == 1 else "第 %d 章" % chapter_no))))
         if not pages:
             raise ValueError("空数组")
         pages[-1]["layout"] = "summary"
         db.log_usage(None, None, "outline", meta.get("provider", "deepseek"), meta.get("model", ""), "-",
                      meta.get("cost_cny", 0.0), meta.get("latency_ms", 0), True, "%d 页" % len(pages))
-        return dict(pages=pages, configured=True, provider=meta.get("provider"), model=meta.get("model"),
-                    cost_cny=meta.get("cost_cny", 0.0), hint="")
+        return dict(pages=pages, chapters=chapter_summary(pages), configured=True, provider=meta.get("provider"),
+                    model=meta.get("model"), cost_cny=meta.get("cost_cny", 0.0), hint="")
     except Exception as e:                            # noqa: BLE001 —— LLM 格式异常也降级
         pages = local_split(text, target_pages)
-        return dict(pages=pages, configured=True, fellback="local_split",
+        return dict(pages=pages, chapters=chapter_summary(pages), configured=True, fellback="local_split",
                     hint="LLM 返回格式异常，已用本地规则切页（%s）" % str(e)[:60],
                     provider="local_split", model="local", cost_cny=0.0)
 

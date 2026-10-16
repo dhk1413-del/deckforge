@@ -256,3 +256,24 @@
 .beautify-generating { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; min-height: 320px; padding: 32px 24px; }
 .beautify-generating-bar { position: relative; width: 100%; max-width: 320px; height: 6px; margin: 10px 0 2px; overflow: hidden; border-radius: 999px; background: var(--color-border); }
 .beautify-generating-bar > i { display: block; height: 100%; border-radius: 999px; background: var(--color-primary); transition: width .3s ease; }
+
+/* 大纲编辑器（向导②「编辑大纲」）：左章节栏 + 右页面卡片 */
+.outline-board { display: flex; flex-direction: column; gap: 14px; padding: 18px; border: 1px solid var(--color-border); border-radius: 20px; background: var(--color-surface); box-shadow: var(--shadow-card); }
+.outline-chapter-row { display: flex; gap: 14px; align-items: flex-start; }
+.outline-chapter { display: flex; flex-direction: column; gap: 8px; width: 172px; flex-shrink: 0; padding: 12px; border: 1px solid var(--color-border); border-radius: 14px; background: var(--color-surface-alt); }
+.outline-chapter-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.outline-pages { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; flex: 1; min-width: 0; }
+.outline-page-card { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border: 1px solid var(--color-border); border-radius: 14px; background: var(--color-surface); cursor: pointer; transition: border-color .15s, box-shadow .15s; }
+.outline-page-card:hover, .outline-page-card:focus-visible { border-color: var(--color-border-strong); box-shadow: var(--shadow-card); outline: none; }
+.outline-page-head { display: flex; align-items: center; gap: 6px; }
+.outline-page-tools { display: flex; align-items: center; gap: 4px; }
+.outline-icon { display: grid; place-items: center; width: 24px; height: 24px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-surface); color: var(--color-ink-sub); font-size: 12px; cursor: pointer; }
+.outline-icon:hover:not(:disabled) { border-color: var(--color-primary); color: var(--color-primary); }
+.outline-icon:disabled { opacity: .45; cursor: not-allowed; }
+.outline-icon.is-danger:hover:not(:disabled) { border-color: var(--color-danger-ink); color: var(--color-danger-ink); }
+.outline-page-title { margin: 2px 0 0; font-size: var(--text-body-md); font-weight: 600; }
+.outline-page-points { display: flex; flex-direction: column; gap: 2px; margin: 0; padding-left: 16px; color: var(--color-ink-sub); font-size: var(--text-body-sm); }
+.outline-add-chapter { align-self: flex-start; padding: 10px 16px; border: 1px dashed var(--color-border-strong); border-radius: 14px; background: transparent; color: var(--color-ink-sub); cursor: pointer; }
+.outline-add-chapter:hover { border-color: var(--color-primary); color: var(--color-primary); }
+.link.is-danger { color: var(--color-danger-ink); }
+@media (max-width: 900px) { .outline-chapter-row { flex-direction: column; } .outline-chapter { width: 100%; } }

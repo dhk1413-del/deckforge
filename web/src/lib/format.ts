@@ -104,4 +104,4 @@ export function statusClass(s: string): string {
   return 'status status-info'
 }
 
-export const projectStageLabel = (step?:number) => ['输入原稿','确认页面','确认内容','选择风格','生成结果'][(step || 1)-1] || '输入原稿'
+export const projectStageLabel = (step?:number) => ['上传内容','编辑大纲','内容梳理','选择风格','确认设计','生成页面'][(step || 1)-1] || '上传内容'

@@ -251,7 +251,7 @@ export function ProjectsPage() {
       <div className="card flex flex-wrap items-end gap-3">
         <label>按名称搜索<input className="input" type="search" value={filters.q || ''} onChange={e => updateFilter('q', e.target.value)} placeholder="输入项目名称" /></label>
         <label>项目类别<select className="input" value={filters.category || ''} onChange={e => updateFilter('category', e.target.value)}>{CATEGORY_OPTIONS.map(item => <option key={item.key} value={item.key}>{item.label}</option>)}</select></label>
-        {filters.category !== 'notes' && <label>阶段<select className="input" value={filters.stage || ''} onChange={e => updateFilter('stage', e.target.value)}><option value="">全部阶段</option>{[1,2,3,4,5].map(step => <option key={step} value={step}>{projectStageLabel(step)}</option>)}</select></label>}
+        {filters.category !== 'notes' && <label>阶段<select className="input" value={filters.stage || ''} onChange={e => updateFilter('stage', e.target.value)}><option value="">全部阶段</option>{[1,2,3,4,5,6].map(step => <option key={step} value={step}>{projectStageLabel(step)}</option>)}</select></label>}
         <button type="button" className="btn btn-secondary" disabled={!hasFilter} onClick={() => {setFilters({}); navigate('/projects')}}>清除搜索与筛选</button>
         <span role="status" className="num">{hasFilter ? (filters.category === 'notes' ? `找到 ${noteMatches.length} 个备注任务` : `找到 ${filtered.length} 个项目`) : ''}</span>
       </div>

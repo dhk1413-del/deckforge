@@ -218,7 +218,7 @@ def get_project(pid: str) -> Dict[str, Any]:
     data["pages_confirmed"] = bool(data["pages_confirmed_at"]) or legacy_content or generated
     data["content_confirmed"] = bool(data["content_confirmed_at"]) or legacy_content
     data["content_revisions"] = {r["id"]: r["content_revision"] for r in rows}
-    data["resume_step"] = (5 if generated else 4 if data["content_confirmed"] else
+    data["resume_step"] = (6 if generated else 4 if data["content_confirmed"] else
                            3 if data["pages_confirmed"] else 2 if data["parsed_text"] or rows else 1)
     data["flow"] = project_flow(pid)
     return data
@@ -582,9 +582,11 @@ def outline(pid: str, payload: Dict[str, Any] = Body(default={})) -> Dict[str, A
     if not proj:
         raise HTTPException(404, "项目不存在")
     if proj["source_type"] == "pptx" and db.q1("SELECT id FROM slides WHERE project_id=? AND source_page_no IS NOT NULL", (pid,)):
-        return dict(pages=[dict(page_no=r["page_no"], title=r["title"], role=r["role"], outline=r["outline"],
-                               points=json.loads(r["points_json"] or "[]"))
-                          for r in db.q("SELECT * FROM slides WHERE project_id=? ORDER BY page_no", (pid,))],
+        pages = [dict(page_no=r["page_no"], title=r["title"], role=r["role"], outline=r["outline"],
+                      points=json.loads(r["points_json"] or "[]"),
+                      chapter_no=r["chapter_no"] or 0, chapter_title=r["chapter_title"] or "")
+                 for r in db.q("SELECT * FROM slides WHERE project_id=? ORDER BY page_no", (pid,))]
+        return dict(pages=pages, chapters=pipeline.chapter_summary(pages),
                     configured=False, fellback="source_extract", hint="直接采用原稿逐页文字与表格；图片页内容请人工补齐，不重跑已成功页面")
     target = int(payload.get("target_pages") or 0)
     res = pipeline.build_outline(proj["parsed_text"] or "", target)
@@ -597,6 +599,8 @@ def outline(pid: str, payload: Dict[str, Any] = Body(default={})) -> Dict[str, A
                       layout=draft.get("layout") or p.get("layout", "cards_4"),
                       outline=p.get("outline", ""), points_json=json.dumps(p.get("points", []), ensure_ascii=False),
                       must_keep_json=json.dumps(p.get("must_keep", []), ensure_ascii=False),
+                      chapter_no=int(p.get("chapter_no") or 0),
+                      chapter_title=str(p.get("chapter_title") or "")[:24],
                       keep=int(bool(draft.get("keep", True))))
         if existing:
             if any(existing[k] != v for k, v in values.items() if k not in ("keep",)):
@@ -613,7 +617,8 @@ def outline(pid: str, payload: Dict[str, Any] = Body(default={})) -> Dict[str, A
     db.x("DELETE FROM slides WHERE project_id=? AND page_no>? AND image_path IS NULL", (pid, len(pages)))
     db.update("projects", pid, dict(status="outlined", target_pages=len(pages),
                                    pages_confirmed_at="", content_confirmed_at=""))
-    return dict(pages=pages, configured=res["configured"], fellback=res.get("fellback", ""),
+    return dict(pages=pages, chapters=res.get("chapters") or pipeline.chapter_summary(pages),
+                configured=res["configured"], fellback=res.get("fellback", ""),
                 hint=res.get("hint", ""), provider=res.get("provider"), model=res.get("model"))
 
 
@@ -655,6 +660,10 @@ def put_pages(pid: str, payload: Dict[str, Any] = Body(...)) -> Dict[str, Any]:
                 upd["source_content_json"] = original_content(row)
         if p.get("layout"):
             upd["layout"] = p["layout"]
+        if "chapter_no" in p:
+            upd["chapter_no"] = int(p.get("chapter_no") or 0)
+        if "chapter_title" in p:
+            upd["chapter_title"] = str(p.get("chapter_title") or "")[:24]
         if upd:
             db.update("slides", row["id"], upd)
     return dict(ok=True, content_revisions={r["id"]: r["content_revision"] for r in db.q(
