@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# SlideCraft pre-push 门禁：**即将上传到 GitHub 的提交**里不许有 key / 私钥 / 运行数据。
+# 这是「模型 key 不上传」这条红线的最后一道闸——在数据离开本机之前拦下。
+#
+# 启用（每个克隆执行一次）：bash tools/install_hooks.sh   或   make hooks
+# 临时跳过（不推荐）：git push --no-verify
+#
+# 写法注意（踩过坑）：变量一律写 ${var}，不要写成 $var（紧跟中文）——macOS 自带 bash 3.2
+# 会把后面那个多字节字符的首字节并进变量名，报 `rng?: unbound variable`。
+# 另外 set -e 下不要写 `[ x ] && continue`（判断为假时整条 AND 列表返回非 0，脚本会直接退出）。
+set -euo pipefail
+cd "$(git rev-parse --show-toplevel)"
+
+PY=".venv/bin/python"
+if [ ! -x "${PY}" ]; then
+  PY="python3"
+fi
+ZERO="0000000000000000000000000000000000000000"
+status=0
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  if [ -z "${local_sha:-}" ]; then
+    continue
+  fi
+  if [ "${local_sha}" = "${ZERO}" ]; then
+    continue                      # 删除远端分支：没有新对象要上传
+  fi
+  if [ -z "${remote_sha:-}" ] || [ "${remote_sha}" = "${ZERO}" ]; then
+    rng="${local_sha}"            # 新分支：扫它以及全部祖先
+  else
+    rng="${remote_sha}..${local_sha}"
+  fi
+  echo "[pre-push] 密钥门禁扫描 ${local_ref}: ${rng}"
+  if ! "${PY}" tools/check_no_secrets.py --range "${rng}"; then
+    status=1
+  fi
+done
+
+if [ "${status}" -ne 0 ]; then
+  echo "[pre-push] 已阻止推送：待上传内容里发现密钥或运行数据。"
+  echo "           把密钥放进 .env（已 gitignore）或界面设置页，从提交里移除后重试。"
+fi
+exit "${status}"

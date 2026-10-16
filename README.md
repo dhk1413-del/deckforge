@@ -119,3 +119,26 @@ config/          供应商配置模板
 ## 名称兼容
 
 项目现名为 **SlideCraft**。为保留已有项目、草稿和部署配置，内部数据库文件、浏览器存储键、运行文件及 `DECKFORGE_*` 环境变量继续沿用原有标识；无需迁移或清空数据。
+
+## 密钥安全
+
+模型 API key 只允许存在于两处：本机 `.env`（或 `config/.env`）与数据库设置表（界面「设置 → 模型与密钥」填的）。
+这两处都已被 `.gitignore` 排除（`data/` 整个目录不入库），**不会、也不允许**进入 git 或上传到 GitHub。
+
+仓库自带三道闸：
+
+| 闸 | 触发 | 作用 |
+|---|---|---|
+| `.githooks/pre-commit` | `git commit` | 检查索引里有没有 key / `.env` / 数据库等 |
+| `.githooks/pre-push` | `git push` | 检查**即将上传的提交**，数据离开本机前拦下 |
+| `make guard` | 手动 / `make verify` | 索引 + HEAD + 全历史三层体检 |
+
+新克隆先启用钩子（每个克隆一次）：
+
+```bash
+make hooks          # 等价于 bash tools/install_hooks.sh
+```
+
+检查器是 `tools/check_no_secrets.py`：既查密钥形态（`sk-`、`ghp_`、`AIza`、PEM、JWT、赋值式长串），
+也把本机 `.env` 与数据库里的**真实 key 值**当字面量全文比对；命中只报 `文件:行号`，**不回显内容**。
+它自身出错时失败关闭（exit 2），不会静默放行。若已确认某个提交安全，可 `git commit --no-verify` 临时跳过——不建议。

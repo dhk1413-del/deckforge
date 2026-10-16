@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# SlideCraft pre-commit 门禁：模型 key / 私钥 / 运行数据不许进 git 索引。
+#
+# 启用（每个克隆执行一次）：bash tools/install_hooks.sh   或   make hooks
+# 临时跳过（不推荐）：git commit --no-verify
+set -euo pipefail
+cd "$(git rev-parse --show-toplevel)"
+PY=".venv/bin/python"
+[ -x "$PY" ] || PY="python3"
+exec "$PY" tools/check_no_secrets.py --staged

@@ -30,7 +30,7 @@ curl -s --noproxy '*' -H "Authorization: Bearer $DEEPSEEK_API_KEY" \
 
 - 本机 **Clash 代理**：调国内 API 必须**绕过代理**（`proxies={}` 或 `--noproxy '*'`），否则请求被绕飞。
 - **OpenAI / Google Gemini / xAI 直连不通**（实测 000 超时）→ 生图只能走上面三家。
-- `npx`/`npm` 若报 `EACCES`：`~/.npm` 有历史 root 属主文件，**加 `--cache /tmp/npm-cache-deckforge`**，不要 sudo。
+- `npx`/`npm` 若报 `EACCES`：`~/.npm` 有历史 root 属主文件，**加 `--cache /tmp/npm-cache-slidecraft`**，不要 sudo。
 
 ## 5. 实现阶段的待办（写在 spec §20）
 

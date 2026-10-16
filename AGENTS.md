@@ -24,8 +24,14 @@
 2. **不伪造数据**：图表只画「视觉识别结果」或「要点原文里的同单位数值」；无可用数据时不画图表，并在页面上标注数据来源。
 3. **零 key 可跑**：没有任何 API key 时，全流程走 `local_render` 本地兜底（成本 0），这条底线不能破。
 4. 中文界面；数字用等宽 `num` 类；配色走 `ui-design/` 令牌（浅色为主）。
-5. **不改** `web/dist/`（由 `npm run build` 生成）；**不提交密钥**。提交前必须跑门禁并做对应验证；
-   本仓库当前流程是「验收通过后由负责 agent 提交，需要时推送到 GitHub」（推送前确认远端与提交内容，别把 `data/`、`web/dist/` 带进去）。
+5. **不改** `web/dist/`（由 `npm run build` 生成）。**模型 key 红线（用户 2026-10-16 明确）**：
+   key 只许待在 `.env`（已 gitignore）或数据库设置表里；**任何情况下都不许进入 git、更不许推到 GitHub**。
+   禁止把 key 写进 `config/providers.yaml`（该文件入库，`api_key` 必须留空）、文档、截图或提交信息。
+   新克隆先 `make hooks` 启用钩子；提交/推送由 `tools/check_no_secrets.py` 强制拦截（命中只报
+   `文件:行号`，**不回显内容**），`make verify` / `make verify-fast` 已内置 `--head` 检查，`make guard` 可单独全历史体检。
+   若发现历史上不慎提交过 key：**第一优先是撤销并轮换该 key**（改写历史要 force push，不擅自做）。
+6. 提交前必须跑门禁并做对应验证；本仓库当前流程是「验收通过后由负责 agent 提交，需要时推送到 GitHub」
+   （推送前确认远端与提交内容，别把 `data/`、`web/dist/` 带进去）。
 
 ## 自检命令（每次改完都要跑，并把真实输出贴出来）
 
@@ -33,6 +39,8 @@
 make verify        # 规范验收：7 套离线回归 + 前端构建 + 线上只读冒烟（一条命令，本仓无 pytest/CI）
 make verify-fast   # 同上但跳过网络冒烟（不写库、不调模型、不花钱）
 make lint          # 后端字节码编译 + 前端 tsc（改完随手跑）
+make guard         # 密钥门禁：索引 + HEAD + 全历史（verify/verify-fast 已自动带 --head）
+make hooks         # 新克隆启用 pre-commit / pre-push 密钥钩子（每个克隆执行一次）
 
 # 需要单独跑某一套时：
 #   .venv/bin/python tools/test_reskin_rebuild.py   # 换皮 B 口径（原文抽取/容量核算/重排）
@@ -77,8 +85,12 @@ make lint          # 后端字节码编译 + 前端 tsc（改完随手跑）
 - **首次自检前先装依赖**：干净检出上直接跑 `make verify` 会因缺 `.venv` 与 `server/pptx/node_modules`
   出现失败。先执行一次 `bash server/start-lan.sh`（它经 `server/run.sh` 装 Python 依赖与 PptxGenJS），
   再跑自检；`tools/verify_all.py` 已会在缺依赖时打印这条提示。
+- **远端仓库**：`https://github.com/dhk1413-del/slidecraft`（public）。原名 `deckforge`，2026-10 在 GitHub 改名，
+  旧地址 301 跳转到新地址；本机 `origin` 已指向新地址，`main` 与 `origin/main` 同步。
+  项目**显示名**是 SlideCraft，但 `DECKFORGE_*` 环境变量、`deckforge.db`、`deckforge.pid`、浏览器 localStorage 键
+  一律**保持原名不动**（见 README「名称兼容」）——改名只改看得见的文案，动标识会丢用户数据。
 - 代理：**7897 已失效**，当前可用的是 `http://127.0.0.1:65532`（GitHub 推送走它）；
   GitHub 直连时通时断，推送一律带 `-c http.proxy=http://127.0.0.1:65532`。
 - GitHub 推送凭据存在 macOS 钥匙串：`security find-generic-password -a dhk1413-del -s deckforge-github-token -w`
-  （token 不落明文；撤销走 GitHub Settings → Applications）。
+  （钥匙串条目名沿用了旧名，是登录凭据、与密钥红线无关；token 不落明文，撤销走 GitHub Settings → Applications）。
 - `web/node_modules` 已存在，构建**不需要联网**

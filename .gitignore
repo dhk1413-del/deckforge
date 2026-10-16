@@ -1,11 +1,26 @@
 # Runtime state and secrets
+# ⚠️ 红线：模型 API key 只许待在 .env（已忽略）或数据库设置里，绝不入库、绝不推 GitHub。
+# 提交/推送前检查：tools/check_no_secrets.py（pre-commit / pre-push 钩子，make guard）。
 .env
+.env.*
+!.env.example
 config/.env
+config/.env.*
+!config/.env.example
 data/
 style-packs/styles/*/previews-local/
 *.db
 *.db-shm
 *.db-wal
+*.sqlite
+*.sqlite3
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa
+id_ed25519
+credentials.json
 
 # Local dependencies and build outputs
 .venv/
