@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { cancelJob, beautifyOrigin, beautifyContinue, beautifyEditable, beautifyPreview, beautifyRegeneratePage, beautifyRestoreVersion, beautifyVersions, codexEngine, createProject, getBeautify, getProject, getProjectJobs, uploadSource, prepareBeautifyContent, saveBeautifyContent, type ApiError } from '../api'
 import { IconFolder } from './Icons'
 import { Dropzone } from './Dropzone'
@@ -332,7 +332,9 @@ export function BeautifyPanel({ packs, loadingPacks, onStepChange, resumeProject
     setCancelling(false)
     setError(null)
     try {
+      const firstPending = resultPages.findIndex(page => !page.beauty_url)
       const job = await beautifyContinue(projectId, { style_pack_id: packId, mode: imageMode, page_nos: selected })
+      if (firstPending >= 0) setResultIndex(firstPending)
       if (!job.job_id) throw new Error('后端没有返回作业号')
       setResult(null)
       setJobId(job.job_id)
@@ -353,7 +355,18 @@ export function BeautifyPanel({ packs, loadingPacks, onStepChange, resumeProject
   const filledCount = contentPages.filter(pageHasText).length
   const currentOriginUrl = currentPage ? origin?.pages.find(item => item.page_no === currentPage.page_no)?.image_url : undefined
   /* ── ⑤ 生成结果：逐页查看美化结果（页状态一律按后端真实字段判断，不编造） ── */
-  const resultPages = result?.pages ?? []
+  /** 结果页列表 = 本次所选的全部页（没轮到的用原稿缩略图占位）——
+   *  批量生成时左栏才能像参考图那样逐页显示「生成中 / 排队中 / 已完成」。 */
+  const resultPages = useMemo<BeautifyStatus['pages']>(() => {
+    if (!result) return []
+    const withResult = result.pages ?? []
+    const nos = result.page_nos?.length ? result.page_nos : withResult.map(page => page.page_no)
+    return nos.map(no => withResult.find(page => page.page_no === no) ?? {
+      page_no: no,
+      origin_url: origin?.pages.find(item => item.page_no === no)?.image_url ?? '',
+      beauty_url: '', beauty_ok: false, text_source: 'none',
+    })
+  }, [result, origin])
   const resultCurrentIndex = Math.min(resultIndex, Math.max(0, resultPages.length - 1))
   const resultCurrent = resultPages[resultCurrentIndex]
   const resultDoneCount = resultPages.filter(page => Boolean(page.beauty_url)).length
@@ -366,11 +379,21 @@ export function BeautifyPanel({ packs, loadingPacks, onStepChange, resumeProject
   const runningPages = Object.values(stream.byPage).filter(event => event.status === 'running')
   const jobActive = stream.status === 'running' || runningPages.length > 0
   const runningSeconds = stream.startedAt ? Math.max(0, Math.round(((stream.finishedAt ?? nowTick) - stream.startedAt) / 1000)) : null
+  /** 剩余时间估算：只用本次任务里已完成页的**实测**均耗时，并按当前并发折算（估不出来就不显示，不编） */
+  const finishedPageEvents = Object.values(stream.byPage).filter(event => event.status === 'done' || event.status === 'failed')
+  const measuredPageMs = finishedPageEvents.length
+    ? finishedPageEvents.reduce((sum, event) => sum + (event.elapsed_ms ?? 0), 0) / finishedPageEvents.length
+    : 0
+  const remainingPages = Math.max(0, resultPages.length - resultDoneCount)
+  const etaSeconds = measuredPageMs > 0 && remainingPages > 0 && runningPages.length > 0
+    ? Math.max(1, Math.round((measuredPageMs * Math.ceil(remainingPages / Math.max(1, runningPages.length))) / 1000))
+    : null
   const resultPageState = (page: BeautifyStatus['pages'][number]) => {
     if (progress.byPage[page.page_no]?.status === 'running') return { label: '生成中', cls: 'status-info' }
     if (page.beauty_url && page.beauty_ok) return { label: '已完成', cls: 'status-success' }
     if (page.beauty_url) return { label: '已用原图', cls: 'status-warn' }
-    if (progress.byPage[page.page_no]?.status === 'running') return { label: '生成中', cls: 'status-info' }
+    // 整批正在跑、该页还没轮到（页数多于并发上限）时如实显示排队，不假装在生成
+    if (stream.status === 'running') return { label: '排队中', cls: 'status-info' }
     return { label: '未生成', cls: 'status-info' }
   }
   /** 步骤可达性：只按真实数据放行（前进/后退都行）；不可达时给出中文原因，点击如实提示而不是静默点不动 */
@@ -639,6 +662,7 @@ export function BeautifyPanel({ packs, loadingPacks, onStepChange, resumeProject
                         已完成 <span className="num">{resultDoneCount}</span> / <span className="num">{resultPages.length}</span> 页
                         {runningPages.length > 1 && <> · <span className="num">{runningPages.length}</span> 页并发中</>}
                         {runningSeconds !== null && <> · 已用时 <span className="num">{runningSeconds}</span> 秒</>}
+                        {etaSeconds !== null && <> · 按已完成页实测均耗时估算，约还需 <span className="num">{etaSeconds}</span> 秒</>}
                       </p>
                     </div>
                 : resultCurrent.beauty_url
@@ -703,7 +727,7 @@ export function BeautifyPanel({ packs, loadingPacks, onStepChange, resumeProject
         <span className="num">{resultCurrent.page_no} / {resultPages.length}</span>
         <PagerArrow dir="next" disabled={busy || resultCurrentIndex >= resultPages.length - 1} onClick={() => { setResultIndex(resultCurrentIndex + 1); setOverview(false) }}/>
         <span className="text-ink-sub">{jobActive
-          ? <>正在生成 <span className="num">{resultDoneCount}</span> / <span className="num">{resultPages.length}</span> 页{runningPages.length > 1 && <>（<span className="num">{runningPages.length}</span> 页并发）</>}</>
+          ? <><span className="beautify-live-dot" aria-hidden="true" />正在生成 <span className="num">{resultDoneCount}</span> / <span className="num">{resultPages.length}</span> 页</>
           : <>已完成 <span className="num">{resultDoneCount}</span> / <span className="num">{resultPages.length}</span> 页</>}</span>
         <button type="button" className="btn btn-secondary rounded-full" disabled={busy || jobActive} onClick={() => setStep(4)}>重新选择风格</button>
         {result.phase === 'preview' && <button type="button" className="btn btn-primary rounded-full" disabled={busy || (!result.exports.image && stream.status !== 'cancelled')} onClick={() => void continueAll()}>{busy ? '正在生成…' : '确认预览，生成全部所选页面'}</button>}

@@ -67,6 +67,10 @@ def stream_close(job_id: str) -> None:
         if JOBS.get(job_id, {}).get("status") in _TERMINAL:
             _evict_job(job_id)
 CONCURRENCY = 3
+# 美化逐页生图并发：参考产品是「多页一起生成」，默认放宽到 8（页数更少时按页数）。
+# 太小会看着像排队；太大可能触发供应商限流——被限流时该页会如实降级为原图并记 warning，不会假装成功。
+# 需要调整时用环境变量 DECKFORGE_BEAUTIFY_CONCURRENCY，不必改代码。
+BEAUTIFY_CONCURRENCY = max(1, int(os.environ.get("DECKFORGE_BEAUTIFY_CONCURRENCY") or 8))
 
 LAYOUT_CYCLE = ["cover", "cards_4", "data_chart", "comparison_2col", "timeline", "cards_4", "summary"]
 
@@ -1241,7 +1245,7 @@ async def run_beautify(project_id: str, style_pack_id: str, phase: str = 'previe
             if await cancelled():
                 return
             previous = {p['page_no']: p for p in state.get('pages', []) if p['page_no'] in wanted}
-            semaphore = asyncio.Semaphore(3)
+            semaphore = asyncio.Semaphore(max(1, min(BEAUTIFY_CONCURRENCY, len(wanted))))
             async def page_task(page):
                 if is_cancelled(job['id']):
                     return None
