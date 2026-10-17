@@ -57,7 +57,9 @@ def snapshot(pid, payload):
                 provider='editppt' if action == 'editable' else (picked or {}).get('id','local_render'),
                 unit_price_cny=price, billable_pages=billable, total_cny=total,
                 cancellable=True, estimated_time='约 13 分钟 / 页' if action == 'editable' else '受供应商响应与重试影响，暂无可靠预计耗时',
-                price_note='单价未配置；账本金额记 0，不代表免费' if price is None else '本地兜底 / 确定性图表费用为 0；其余页按已配置单价估算',
+                price_note=('本机模型额度费用无法核实；账本金额记 0，不代表免费' if action == 'editable'
+                            else '单价未配置；账本金额记 0，不代表免费' if price is None
+                            else '本地兜底 / 确定性图表费用为 0；其余页按已配置单价估算'),
                 failure_policy='账本记录本系统可核实的调用成本；失败不承诺退款。供应商失败调用或本机模型额度费用无法核实，不视为免费。'), fingerprint
 
 

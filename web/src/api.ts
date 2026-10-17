@@ -225,13 +225,15 @@ export const cancelEditable = (id: string) =>
     jsonInit('POST', {}),
   )
 
+export type SubmissionPhase = 'quote' | 'submit'
 export const toEditable = (
   id: string,
   page_nos: number[],
   engine: EditableEngineId = 'editppt',
   resume = false,
+  onPhase?: (phase: SubmissionPhase) => void,
 ) =>
-  confirmedSubmission<EditableResponse>(id, `/projects/${encodeURIComponent(id)}/editable`, 'editable', {page_nos,engine,resume})
+  confirmedSubmission<EditableResponse>(id, `/projects/${encodeURIComponent(id)}/editable`, 'editable', {page_nos,engine,resume}, onPhase)
 
 export const exportDeck = (id: string, kind: ExportKind) =>
   request<ExportResponse>(`/projects/${encodeURIComponent(id)}/export?kind=${kind}`)
@@ -420,28 +422,52 @@ const operationBusy = new Set<string>()
 function confirmOperation(q:OperationQuote):Promise<boolean> {
   return new Promise(resolve=>{
     const trigger=document.activeElement instanceof HTMLElement?document.activeElement:null
+    const editable=q.operation_name.includes('可编辑')||q.mode.includes('重建')
     const dialog=document.createElement('dialog')
     dialog.setAttribute('aria-modal','true')
-    dialog.setAttribute('aria-label','确认'+q.operation_name)
+    dialog.setAttribute('aria-label',editable?'确认精细重建可编辑页':'确认'+q.operation_name)
     dialog.className='card'
-    dialog.style.cssText='max-width:640px;width:90vw;max-height:85vh;overflow:auto'
-    const title=document.createElement('h2');title.textContent='确认'+q.operation_name;dialog.append(title)
-    const lines=[`所选页：${q.page_nos.join('、')}`,`最终范围：${q.final_scope.join('、')}（${q.final_scope.length} 页）`,
-      `内容修订：${Object.entries(q.content_revisions).map(([id,r])=>`${id} / ${r}`).join('；')}`,`风格：${q.style_revision}`,`模式：${q.mode}`,
-      q.unit_price_cny===null?'单价未配置':`单价：${q.unit_price_cny} 元 / 页；调用生图页：${q.billable_pages.join('、') || '无'}`,
-      q.total_cny===null?'总额未知':`预估总额：${q.total_cny} 元`,q.price_note,
-      `是否可取消：${q.cancellable?'可在检查点取消，正在执行的调用需等待':'不可取消'}`,`预计耗时：${q.estimated_time}`,`失败时费用处理：${q.failure_policy}`]
-    if(q.page_versions?.length)lines.push('转换绑定版本：'+q.page_versions.map(p=>`第 ${p.page_no} 页 / 序号 ${p.display_order} / V${p.version_number ?? '未知'}`).join('；'),'续跑以原转换现场版本为准；旧现场无快照时版本不可追溯。转换完成产物固定为该输入版本快照。')
-    for(const line of lines){const p=document.createElement('p');p.textContent=line;p.className='num';dialog.append(p)}
+    // Tailwind 预检会把 dialog 的 margin 归零，导致 showModal 贴左上；这里显式恢复居中。
+    dialog.style.cssText='max-width:640px;width:92vw;max-height:85vh;overflow:auto;margin:auto;position:fixed;inset:0;z-index:60'
+    const title=document.createElement('h2');title.textContent=editable?'确认精细重建可编辑页':'确认'+q.operation_name;dialog.append(title)
+    const lines:string[]=[]
+    lines.push(`所选页：${q.page_nos.join('、')}`)
+    lines.push(`最终范围：${q.final_scope.join('、')}（${q.final_scope.length} 页）`)
+    if(editable){
+      lines.push('模式：精细重建（文字/图片/图形/背景分别拆分）')
+      lines.push(`预计耗时：${q.estimated_time}`)
+      lines.push(`费用：${q.price_note || '本机模型额度；账本金额记 0，不代表免费'}`)
+      lines.push(`是否可取消：${q.cancellable?'可在检查点取消，正在执行的调用需等待':'不可取消'}`)
+      lines.push('产物：仅包含所转页面；每页通过 validation 校验')
+      lines.push(`失败时费用处理：${q.failure_policy}`)
+    }else{
+      lines.push(`内容修订：${Object.entries(q.content_revisions).map(([id,r])=>`${id} / ${r}`).join('；')}`)
+      lines.push(`风格：${q.style_revision}`)
+      lines.push(`模式：${q.mode}`)
+      lines.push(q.unit_price_cny===null?'单价未配置':`单价：${q.unit_price_cny} 元 / 页；调用生图页：${q.billable_pages.join('、') || '无'}`)
+      lines.push(q.total_cny===null?'总额未知':`预估总额：${q.total_cny} 元`)
+      lines.push(q.price_note)
+      lines.push(`是否可取消：${q.cancellable?'可在检查点取消，正在执行的调用需等待':'不可取消'}`)
+      lines.push(`预计耗时：${q.estimated_time}`)
+      lines.push(`失败时费用处理：${q.failure_policy}`)
+    }
+    if(q.page_versions?.length){
+      lines.push('转换绑定版本：'+q.page_versions.map(p=>`第 ${p.page_no} 页 / 序号 ${p.display_order} / V${p.version_number ?? '未知'}`).join('；'))
+      lines.push('续跑以原转换现场版本为准；旧现场无快照时版本不可追溯。转换完成产物固定为该输入版本快照。')
+    }
+    for(const line of lines){const p=document.createElement('p');p.textContent=line;p.className='text-body-sm';p.style.cssText='margin:0 0 6px;line-height:1.55';dialog.append(p)}
+    const footer=document.createElement('div');footer.style.cssText='display:flex;gap:12px;justify-content:flex-end;margin-top:16px'
     const cancel=document.createElement('button');cancel.className='btn btn-secondary';cancel.textContent='返回'
-    const accept=document.createElement('button');accept.className='btn btn-primary';accept.textContent=`确认${q.mode.includes('重建')?'转换':'生成'} ${q.final_scope.length} 页 · ${q.total_cny===null?'单价未配置':`预估 ${q.total_cny} 元`}`
+    const accept=document.createElement('button');accept.className='btn btn-primary'
+    accept.textContent=editable?`确认精细重建 ${q.final_scope.length} 页`:`确认${q.mode.includes('重建')?'转换':'生成'} ${q.final_scope.length} 页 · ${q.total_cny===null?'单价未配置':`预估 ${q.total_cny} 元`}`
     const finish=(value:boolean)=>{dialog.close();dialog.remove();if(trigger?.isConnected)trigger.focus();resolve(value)}
+    dialog.addEventListener('click',e=>{if(e.target===dialog)finish(false)})
     cancel.onclick=()=>finish(false);accept.onclick=()=>{accept.disabled=true;finish(true)}
     dialog.oncancel=e=>{e.preventDefault();finish(false)}
-    dialog.append(cancel,accept);document.body.append(dialog);dialog.showModal();cancel.focus()
+    footer.append(cancel,accept);dialog.append(footer);document.body.append(dialog);dialog.showModal();cancel.focus()
   })
 }
-async function confirmedSubmission<T>(pid:string,path:string,operation:string,body:Record<string,unknown>):Promise<T> {
+async function confirmedSubmission<T>(pid:string,path:string,operation:string,body:Record<string,unknown>,onPhase?:(phase:SubmissionPhase)=>void):Promise<T> {
   const slot=`deckforge:submission:${pid}:${operation}`
   if(operationBusy.has(slot)) throw new ApiError('正在确认或提交，请等待',409)
   operationBusy.add(slot)
@@ -449,12 +475,15 @@ async function confirmedSubmission<T>(pid:string,path:string,operation:string,bo
     const stored=localStorage.getItem(slot)
     let pending: {key:string;quote_id:string;path:string;body:Record<string,unknown>}|null=stored?JSON.parse(stored):null
     if(pending){
+      onPhase?.('submit')
       try {const existing=await request<T>(`/projects/${encodeURIComponent(pid)}/submissions/${encodeURIComponent(pending.key)}`);localStorage.removeItem(slot);return existing}
       catch(e){if(!(e instanceof ApiError) || e.status!==404)throw e}
       // 服务端明确未登记后才重试同一请求；不生成新键。
     } else {
+      onPhase?.('quote')
       const q=await request<OperationQuote>(`/projects/${encodeURIComponent(pid)}/quote`,jsonInit('POST',{...body,operation}))
       if(!await confirmOperation(q))throw new SubmissionCancelled()
+      onPhase?.('submit')
       pending={key:crypto.randomUUID(),quote_id:q.quote_id,path,body}
       localStorage.setItem(slot,JSON.stringify(pending))
     }

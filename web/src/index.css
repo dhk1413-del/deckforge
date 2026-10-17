@@ -3,6 +3,10 @@
 @import "../../ui-design/tailwind.theme.css";
 @import "../../ui-design/app.css";
 
+/* 原生 dialog：Tailwind 预检把 margin 归零后 showModal 会贴左上；恢复居中并给遮罩 */
+dialog { position: fixed; inset: 0; margin: auto; }
+dialog::backdrop { background: rgba(15, 23, 42, .48); backdrop-filter: blur(2px); }
+
 /* 呼吸动画：缩略图「生成中」状态（components.md 要求 accent 呼吸） */
 @keyframes df-breath {
   0%, 100% { opacity: .45; }
