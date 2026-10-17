@@ -476,6 +476,45 @@ export interface UsageResponse {
 
 export type UsageRange = 'today' | 'week' | 'month' | 'all'
 
+/** 供应商面板侧累计用量（New API 计费接口）：只给累计值 + 与上次快照的差额 */
+export interface ProviderUsageDelta {
+  total_usage: number
+  used_usd: number | null
+  used_cny: number | null
+  previous_ts: string
+  previous_total: number
+}
+
+export interface ProviderUsageItem {
+  provider_id: string
+  label: string
+  ok: boolean
+  cached: boolean
+  /** 面板展示币种：USD | CNY | TOKENS */
+  currency: string
+  total_usage: number | null
+  used_usd: number | null
+  used_cny: number | null
+  exchange_rate: number | null
+  unlimited: boolean | null
+  limit_usd: number | null
+  limit_remaining_usd: number | null
+  quota_per_unit: number | null
+  fetched_at: string
+  duration_ms: number
+  error: string
+  scope_note: string
+  delta: ProviderUsageDelta | null
+  first_snapshot: boolean
+}
+
+export interface ProviderUsageResponse {
+  items: ProviderUsageItem[]
+  fetched_at: string
+  cache_seconds: number
+  note: string
+}
+
 /* ---------------- 6. PPT 备注（上传已有 pptx → 逐页讲稿备注 → 写回备注栏） ---------------- */
 
 export interface NotesPage {
@@ -609,7 +648,8 @@ export interface BeautifyStatus {
   rendered: number
   confirmed: boolean
   pages: BeautifyPage[]
-  codex: { ok: boolean; path?: string; seconds?: number; message?: string; warnings?: string[] }
+  /** 按需精细重建（image-to-editable-ppt）的最近一次结果 */
+  editable_engine?: { ok: boolean; engine?: string; path?: string; seconds?: number; message?: string; warnings?: string[]; run_dir?: string; pages?: number }
   exports: { editable?: string; image?: string }
   cost: {
     total_cny: number
@@ -628,12 +668,4 @@ export interface BeautifyJobResponse {
   page_count?: number
   message?: string
   remaining_pages?: number
-}
-
-export interface CodexEngineStatus {
-  ok: boolean
-  binary: string
-  version: string
-  proxy: string
-  reason: string
 }

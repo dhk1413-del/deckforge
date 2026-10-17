@@ -23,7 +23,6 @@ GuaiHub 是 **New API** 面板，它的 OpenAI 兼容计费接口用**同一个 
 import json
 import threading
 import time
-from concurrent.futures import Future, ThreadPoolExecutor
 from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
@@ -32,12 +31,19 @@ from . import config, db, providers
 
 CACHE_SECONDS = 60          # 正常结果缓存：用量是累计值，1 分钟内重复查没有意义
 FAIL_CACHE_SECONDS = 20     # 失败缓存：网络抖动时别让每次刷新都卡一遍
-USAGE_TIMEOUT = 8.0
-AUX_TIMEOUT = 5.0
+# 超时拆开配：connect 与 read 各自计时，避免一个卡住的连接把总耗时拖到 40 秒（实测踩过）。
+# TUN/代理链路偶发握手很慢：先拿公开 status（顺带预热连接），主用量失败再重试一次。
+STATUS_TIMEOUT = httpx.Timeout(connect=3.0, read=3.0, write=3.0, pool=3.0)
+USAGE_TIMEOUT = httpx.Timeout(connect=4.0, read=7.0, write=7.0, pool=4.0)
+USAGE_RETRY_TIMEOUT = httpx.Timeout(connect=3.0, read=4.0, write=4.0, pool=3.0)
+AUX_TIMEOUT = httpx.Timeout(4.0)
+AUX_SKIP_AFTER = 18.0       # 主结论已花超过 18 秒，就放弃可选的额度上限，别让卡片一直转
+STATUS_CACHE_SECONDS = 300  # /api/status 是公开的慢接口（汇率/币种很少变），单独缓存 5 分钟
 UNLIMITED_THRESHOLD = 1e8   # New API 对「不限量」令牌/账号直接填 1e8
 
 _LOCK = threading.Lock()
 _CACHE: Dict[str, Tuple[float, Dict[str, Any]]] = {}
+_STATUS_CACHE: Dict[str, Tuple[float, Dict[str, Any]]] = {}
 
 
 class _QueryError(Exception):
@@ -72,14 +78,23 @@ def _root(base_url: str) -> str:
 
 
 def _get_json(client: httpx.Client, url: str, key: Optional[str],
-              timeout: float) -> Dict[str, Any]:
+              timeout: Any, attempts: int = 1) -> Dict[str, Any]:
     headers = {"Authorization": "Bearer " + key} if key else {}
-    try:
-        response = client.get(url, headers=headers, timeout=timeout)
-    except httpx.TimeoutException:
-        raise _QueryError("查询超时：供应商面板没有在 %d 秒内响应（网络不通或面板繁忙）" % int(timeout))
-    except httpx.HTTPError as exc:
-        raise _QueryError("网络错误：%s" % type(exc).__name__)
+    used_timeout = timeout
+    for attempt in range(attempts):
+        try:
+            response = client.get(url, headers=headers, timeout=used_timeout)
+            break
+        except httpx.TimeoutException:
+            if attempt + 1 < attempts:
+                time.sleep(0.4)                            # 连接已建立后重试通常只要几百毫秒
+                used_timeout = USAGE_RETRY_TIMEOUT
+                continue
+            read_seconds = getattr(used_timeout, "read", None)
+            hint = "（%.0f 秒无响应）" % read_seconds if isinstance(read_seconds, (int, float)) else ""
+            raise _QueryError("查询超时：供应商面板没有响应%s（网络不通或面板繁忙）" % hint)
+        except httpx.HTTPError as exc:
+            raise _QueryError("网络错误：%s" % type(exc).__name__)
     if response.status_code == 401:
         raise _QueryError("鉴权失败（HTTP 401）：这个 key 无权查询计费接口，或 key 已失效")
     if response.status_code == 404:
@@ -98,13 +113,18 @@ def _get_json(client: httpx.Client, url: str, key: Optional[str],
     return body
 
 
-def _quiet(future: Future) -> Dict[str, Any]:
-    """可选请求：失败就返回空字典（不影响主结论，也不把异常甩给上层）。"""
+def _status_for(client: httpx.Client, root: str) -> Dict[str, Any]:
+    """面板币种/汇率：公开接口，单独长缓存；拿不到时沿用上次的值（汇率不会每分钟变）。"""
+    hit = _STATUS_CACHE.get(root)
+    if hit and time.monotonic() - hit[0] < STATUS_CACHE_SECONDS:
+        return hit[1]
     try:
-        body = future.result()
-    except Exception:
-        return {}
-    return body if isinstance(body, dict) else {}
+        body = _get_json(client, root + "/api/status", None, STATUS_TIMEOUT)
+    except _QueryError:
+        return hit[1] if hit else {}
+    data = body.get("data") if isinstance(body.get("data"), dict) else body
+    _STATUS_CACHE[root] = (time.monotonic(), data)
+    return data
 
 
 def _previous_snapshot(provider_id: str, currency: str) -> Optional[Dict[str, Any]]:
@@ -143,7 +163,7 @@ def _snapshot(provider_id: str, display: str, total: float, rate: Optional[float
 
 
 def _probe(provider: Dict[str, Any]) -> Dict[str, Any]:
-    """查一次面板（状态 → 用量 → 订阅）。同步、可能耗时 3~10 秒。"""
+    """查一次面板（状态 → 用量 → 订阅）。同步、通常 3~6 秒，网络差时可能十几秒。"""
     root = _root(provider.get("base_url", ""))
     key = provider.get("key") or ""
     started = time.monotonic()
@@ -152,21 +172,22 @@ def _probe(provider: Dict[str, Any]) -> Dict[str, Any]:
     if not key:
         raise _QueryError("未配置 API key，无法查询面板用量")
 
-    kwargs = providers._client_kwargs(bool(provider.get("needs_proxy")), USAGE_TIMEOUT)
+    kwargs = providers._client_kwargs(bool(provider.get("needs_proxy")), STATUS_TIMEOUT)
+    # 必须在同一个 Client 里**串行**发：实测 3 条并发 TLS 握手会互相拖死（8 秒全超时），
+    # 串行则首连 2~4 秒、之后 keep-alive 复用连接只要 0.3~1.5 秒。
     with httpx.Client(**kwargs) as client:
-        # 三个请求互不依赖，并行发：串行实测要 12 秒，并行后最坏约 8 秒。
-        with ThreadPoolExecutor(max_workers=3) as pool:
-            status_future = pool.submit(_get_json, client, root + "/api/status", None, AUX_TIMEOUT)
-            usage_future = pool.submit(_get_json, client, root + "/v1/dashboard/billing/usage", key, USAGE_TIMEOUT)
-            subscription_future = pool.submit(
-                _get_json, client, root + "/v1/dashboard/billing/subscription", key, AUX_TIMEOUT)
-            status_body = _quiet(status_future)              # 公开接口：拿币种/汇率；失败也继续
-            raw_usage = usage_future.result()                # 主结论：必需
-            subscription = _quiet(subscription_future)       # 上限只是补充信息
-        status = status_body.get("data") if isinstance(status_body.get("data"), dict) else status_body
+        status = _status_for(client, root)        # 币种/汇率：先拿，顺带预热连接；也有 5 分钟缓存
+        raw_usage = _get_json(client, root + "/v1/dashboard/billing/usage", key,
+                              USAGE_TIMEOUT, attempts=2)   # 主结论：必需；超时重试一次
         total = _float(raw_usage.get("total_usage"))
         if total is None:
             raise _QueryError("供应商没有返回 total_usage，无法确定已用额度")
+        subscription: Dict[str, Any] = {}
+        if time.monotonic() - started < AUX_SKIP_AFTER:
+            try:                                        # 额度上限：补充信息，失败不影响主结论
+                subscription = _get_json(client, root + "/v1/dashboard/billing/subscription", key, AUX_TIMEOUT)
+            except _QueryError:
+                pass
 
     display = str(status.get("quota_display_type") or "USD").upper()
     rate = _float(status.get("usd_exchange_rate"))

@@ -26,6 +26,7 @@ TOOLS = [
     ("test_source_pages", "原稿缩略图（缓存命中/降级/自愈）"),
     ("test_db_update", "db.update 列自适应（exports 无 updated_at 也能更新）"),
     ("test_project_delete", "删除项目（守卫/记录与磁盘清理/账本保留/越界保护）"),
+    ("test_provider_usage", "供应商面板用量（New API 计费/币种折算/快照增量/缓存/脱敏）"),
     ("test_editppt_engine", "精细重建引擎接入（可用性/提示合成/失败聚合）"),
     ("test_editppt_validation_race", "精细重建·校验读取时序（重试窗口/不假绿）"),
     ("test_vision_layout", "视觉识别→版面块映射（单位自适应/脏块丢弃/图表抽取）"),

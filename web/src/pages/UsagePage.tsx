@@ -1,11 +1,11 @@
 /** 用量：所选时间范围的成本、生成指标与供应商汇总 */
 import { useMemo, useState } from 'react'
-import { getUsage } from '../api'
+import { getProviderUsage, getUsage } from '../api'
 import { useAsync } from '../hooks/useAsync'
-import { cn, cny } from '../lib/format'
+import { cn, cny, fmtTime } from '../lib/format'
 import { Metric } from '../components/Metric'
 import { ErrorState, Loading } from '../components/StateBlock'
-import type { UsageRange } from '../types'
+import type { ProviderUsageDelta, ProviderUsageItem, UsageRange } from '../types'
 
 const RANGES: Array<{ key: UsageRange; label: string }> = [
   { key: 'today', label: '今日' },
@@ -14,10 +14,42 @@ const RANGES: Array<{ key: UsageRange; label: string }> = [
   { key: 'all', label: '全部' },
 ]
 
+const usdText = (v: number | null | undefined) => (v == null ? '—' : `$${v.toFixed(2)}`)
+const cnyText = (v: number | null | undefined) => (v == null ? '—' : `¥${v.toFixed(2)}`)
+
+/** 面板侧累计用量的主数值：币种由面板 quota_display_type 决定，不硬编码人民币 */
+function panelAmount(item: ProviderUsageItem): string {
+  if (item.currency === 'TOKENS') return `${(item.total_usage ?? 0).toLocaleString()} tokens`
+  if (item.currency === 'CNY') {
+    return `${cnyText(item.used_cny)}${item.used_usd == null ? '' : `（≈ ${usdText(item.used_usd)}）`}`
+  }
+  return `${usdText(item.used_usd)}${item.used_cny == null ? '' : `（≈ ${cnyText(item.used_cny)}）`}`
+}
+
+function panelDelta(item: ProviderUsageItem, delta: ProviderUsageDelta): string {
+  const sign = delta.total_usage > 0 ? '+' : ''
+  if (item.currency === 'TOKENS') return `${sign}${delta.total_usage.toLocaleString()} tokens`
+  if (item.currency === 'CNY') return `${sign}${cnyText(delta.used_cny)}`
+  return `${sign}${usdText(delta.used_usd)}`
+}
+
 export function UsagePage() {
   const [range, setRange] = useState<UsageRange>('month')
   const usage = useAsync(() => getUsage(range), [range])
   const data = usage.data
+  const upstream = useAsync(() => getProviderUsage(), [])
+  const [upstreamBusy, setUpstreamBusy] = useState(false)
+  /** 手动刷新绕过服务端 60 秒缓存；失败时保留上一次结果，不让卡片变空 */
+  const refreshUpstream = async () => {
+    setUpstreamBusy(true)
+    try {
+      upstream.setData(await getProviderUsage(true))
+    } catch {
+      /* 保留旧数据，错误由后续重试提示 */
+    } finally {
+      setUpstreamBusy(false)
+    }
+  }
 
   const stats = useMemo(() => {
     const items = data?.items ?? []
@@ -100,6 +132,72 @@ export function UsagePage() {
             </div>
           </div>
         </>
+      )}
+
+      {(upstream.loading || (upstream.data?.items.length ?? 0) > 0) && (
+        <div className="card">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="card-title m-0! text-h3">供应商侧用量</h2>
+            <span className="text-caption text-ink-sub">面板口径 · 累计值（不按日期区间）</span>
+            <span className="flex-1" />
+            <button
+              type="button"
+              className="btn btn-secondary h-8! text-body-sm"
+              disabled={upstreamBusy}
+              onClick={() => void refreshUpstream()}
+            >
+              {upstreamBusy ? '查询中…' : '向面板刷新'}
+            </button>
+          </div>
+
+          {upstream.loading && !upstream.data && (
+            <p className="m-0 text-body-sm text-ink-sub">正在向供应商面板查询用量（通常几秒；网络不好时需要更久，可稍后刷新）…</p>
+          )}
+          {upstream.error && !upstream.data && (
+            <p className="m-0 text-body-sm text-ink-sub">面板查询失败：{upstream.error.detail}（不影响本地账本）</p>
+          )}
+
+          <ul className="m-0 mt-2 flex list-none flex-col gap-2 p-0">
+            {(upstream.data?.items ?? []).map((item) => (
+              <li key={item.provider_id} className="rounded-md border border-border px-3 py-2">
+                <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                  <span className="text-body-md">{item.label}</span>
+                  {item.ok ? (
+                    <>
+                      <span className="num text-body-md">{panelAmount(item)}</span>
+                      {item.delta && (
+                        <span className="num text-caption text-ink-sub">
+                          较上次快照 {panelDelta(item, item.delta)}（{fmtTime(item.delta.previous_ts)}）
+                        </span>
+                      )}
+                      <span className="flex-1" />
+                      <span className="text-caption text-ink-sub">
+                        查询于 {fmtTime(item.fetched_at)} · <span className="num">{item.duration_ms}</span> ms
+                        {item.cached ? ' · 缓存' : ''}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="flex-1" />
+                      <span className="text-caption text-danger-ink">{item.error}</span>
+                    </>
+                  )}
+                </div>
+                {item.ok && (
+                  <p className="m-0 mt-1 text-caption text-ink-sub">
+                    {item.scope_note}。
+                    {item.unlimited
+                      ? '面板未给额度上限。'
+                      : `面板额度上限 ${usdText(item.limit_usd)}，剩余 ${usdText(item.limit_remaining_usd)}。`}
+                    {item.exchange_rate ? `人民币按面板汇率 ${item.exchange_rate} 折算，仅作参考。` : '本次未取到面板汇率，未折算人民币。'}
+                  </p>
+                )}
+              </li>
+            ))}
+          </ul>
+
+          {upstream.data?.note && <p className="m-0 mt-2 text-caption text-ink-sub">{upstream.data.note}</p>}
+        </div>
       )}
     </div>
   )

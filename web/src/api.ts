@@ -7,7 +7,6 @@ import type {
   BeautifyJobResponse,
   BeautifyStatus,
   BeautifyVersionsResponse,
-  CodexEngineStatus,
   CreateProjectPayload,
   EditableResponse,
   ExportKind,
@@ -24,6 +23,7 @@ import type {
   PagesPayload,
   Project,
   ProjectListResponse,
+  ProviderUsageResponse,
   EditableEngine,
   EditableEngineId,
   EditpptStatus,
@@ -241,6 +241,10 @@ export const exportDeck = (id: string, kind: ExportKind) =>
 export const getUsage = (range: UsageRange = 'month') =>
   request<UsageResponse>(`/usage?range=${range}`)
 
+/** 供应商面板侧累计用量（New API 计费接口）。只读、不花钱；refresh=true 绕过 60 秒缓存 */
+export const getProviderUsage = (refresh = false) =>
+  request<ProviderUsageResponse>(`/provider-usage${refresh ? '?refresh=1' : ''}`)
+
 /* ---------------- 6. PPT 备注（上传已有 pptx → 讲稿备注 → 写回备注栏） ---------------- */
 
 export const listNotes = () => request<NotesListResponse>('/notes')
@@ -394,8 +398,6 @@ export const beautifyRestoreVersion = (id: string, pageNo: number, versionId: st
   request<BeautifyJobResponse>(`/projects/${id}/beautify/pages/${pageNo}/versions/${encodeURIComponent(versionId)}/restore`, jsonInit('POST', {}))
 
 export const getBeautify = (id: string) => request<BeautifyStatus>(`/projects/${id}/beautify`)
-export const codexEngine = () => request<CodexEngineStatus>('/codex-engine')
-
 export const beautifyOrigin = (id: string) => request<{ page_count: number; renderer: string; pages: Array<{ page_no: number; image_url: string; width: number; height: number }> }>(`/projects/${id}/beautify/origin`, jsonInit('POST', {}))
 
 export const saveSlideContent = (pid:string, sid:string, payload: {revision:number; title:string; outline:string; points:string[]; modules:import('./types').ContentModule[]; source_note:string}) => request<Slide>(`/projects/${encodeURIComponent(pid)}/slides/${encodeURIComponent(sid)}/content`,jsonInit('PATCH',payload))
