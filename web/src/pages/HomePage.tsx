@@ -154,7 +154,8 @@ export function HomePage() {
             ))}
           </div>}
 
-          <div className="min-w-0">
+          {/* 功能框：固定高度，三个模式互相切换时尺寸不跳动；内容更高时在框内滚动 */}
+          <div className="mode-panel min-w-0">
             {mode === 'topic' && <TopicPanel pickedPack={pickedPack} />}
             {mode === 'editable' && <EditablePanel />}
             {mode === 'reskin' && <BeautifyPanel packs={packOptions} loadingPacks={packs.loading} onStepChange={setBeautifyStep} initialStylePackId={pickedPack} />}
