@@ -128,6 +128,15 @@ def page_worker_timeout() -> int:
         return PAGE_WORKER_TIMEOUT
 
 
+def early_exit_seconds() -> int:
+    """页面产物已通过校验且稳定 N 秒后，主动结束仍在收尾的 agent 进程（0=关闭）。"""
+    try:
+        value = int(_setting("editppt.early_exit_seconds") or 8)
+    except (TypeError, ValueError):
+        value = 8
+    return max(0, min(120, value))
+
+
 def max_concurrent_pages() -> int:
     """并发 page worker 数（skill 的 page_jobs.json.max_concurrent_pages 默认 6，这里按机器保守收敛）。"""
     try:
@@ -428,10 +437,22 @@ def _worker_prompt(run_dir: str, page_id: str, page_dir: str) -> str:
         "1. 页面工作指令（必读）：%s/worker-prompt.md\n"
         "2. 权威契约与参考：%s/references/manifest-schema.md、page-decision-tree.md、cli-helper.md\n"
         "3. 内容真源（重要）：%s"
+        "3.5 元素拆分硬要求（严格按 skill 的 page-decision-tree）：文字→原生文本框；"
+        "照片/插画/图标/logo/贴纸/手绘标记→必须走 image edit 的资产表分离成透明 PNG 资产"
+        "（source_type=asset-sheet-separated），不得直接裁源图、不得用原生形状近似；"
+        "卡片/线条/箭头/表格等结构性图形→原生形状或原生表格；背景→按 background_strategy "
+        "用 native 或 imagegen clean base；manifest 必须写 visual_inventory、background_strategy、"
+        "asset_provenance、quality_checks；**禁止把整页 source.png 当底图**。\n"
         "4. 交付物：%s/manifest.json，然后用 `editppt page build %s` 生成 page.pptx 与 preview.png，"
         "并让 `editppt page validate %s` 通过。**不要执行 run record / run finalize**（平台负责）。\n"
         "5. 完成后用中文简述：validate 结果、text_boxes 与 shapes 数量、遇到的问题与取舍。\n"
         % (page_dir, skill_dir(), truth, page_dir, page_dir, page_dir))
+
+
+def _page_outputs_stamp(page_dir: str) -> tuple:
+    files = ("manifest.json", "page_result.json", "validation.json", "page.pptx", "preview.png")
+    return tuple((name, os.path.getmtime(os.path.join(page_dir, name)))
+                 for name in files if os.path.isfile(os.path.join(page_dir, name)))
 
 
 def _run_page_worker(page_dir: str, page_id: str, cancel_key: str = "") -> Dict[str, Any]:
@@ -458,6 +479,9 @@ def _run_page_worker(page_dir: str, page_id: str, cancel_key: str = "") -> Dict[
     except OSError as exc:
         return dict(ok=False, tail="%s: %s" % (type(exc).__name__, exc))
     timeout = page_worker_timeout()
+    early = early_exit_seconds()
+    stable_since = None
+    stable_stamp = None
     try:
         while proc.poll() is None:
             if cancel_key and is_cancelled(cancel_key):
@@ -474,6 +498,18 @@ def _run_page_worker(page_dir: str, page_id: str, cancel_key: str = "") -> Dict[
                 except subprocess.TimeoutExpired:
                     proc.kill()
                 return dict(ok=False, tail="page worker 超时（%d 秒）" % timeout)
+            # agent 已把产物写完且校验通过，但仍在生成收尾消息：稳定 N 秒就主动结束
+            if early and os.path.isfile(os.path.join(page_dir, "page_result.json")):
+                stamp = _page_outputs_stamp(page_dir)
+                if stamp != stable_stamp:
+                    stable_stamp, stable_since = stamp, time.time()
+                elif stable_since is not None and time.time() - stable_since >= early:
+                    proc.terminate()
+                    try:
+                        proc.wait(timeout=10)
+                    except subprocess.TimeoutExpired:
+                        proc.kill()
+                    return dict(ok=True, tail="early-exit：产物与校验已稳定 %d 秒，主动结束收尾进程" % early)
             time.sleep(1)
         out = proc.stdout.read() if proc.stdout else ""
         tail = (out or "")[-1500:]
