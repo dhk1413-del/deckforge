@@ -728,14 +728,24 @@ export function WizardPage() {
   }
   if (restoring) return <Loading rows={4} label="加载项目工作台…" />
   if (restoreError) return <ErrorState error={restoreError} title="项目加载失败" />
+  /* 保存状态：口径与原先完全一致（失败 > 正在保存 > 未保存 > 已保存），只是改成一行里的胶囊显示 */
+  const saveFlags = [saveState, ...(step === 3 ? [contentSaveState] : [])]
+  const saveFailed = saveFlags.includes('保存失败')
+  const saveBusy = saveFlags.includes('正在保存')
+  const saveLabel = saveFailed ? '保存失败' : saveBusy ? '正在保存…' : saveFlags.includes('未保存') ? '未保存' : '已保存'
   return (
     <div className="flex flex-col gap-4">
-      <div className="card">
-        <div className="flex flex-wrap items-center gap-3">
-          <div>
-            <h1 className="m-0 text-h1 font-semibold">{projectId ? title : '生成向导'}</h1>
-            {projectId && <label className="flex items-center gap-2 mt-2"><span>项目名称</span><input className="input" value={title} onChange={e => {setTitle(e.target.value);stageConfig({title:e.target.value})}} onBlur={() => void saveConfig({title})} /></label>}
-          </div>
+      {/* 顶栏卡片紧凑排版：标题 / 项目名称 / 保存状态 同一行，步骤条收紧（约原来一半高） */}
+      <div className="card wizard-head">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <h1 className="m-0 text-h3 font-semibold">{projectId ? title : '生成向导'}</h1>
+          {projectId && <label className="flex items-center gap-2 whitespace-nowrap"><span className="metric-label">项目名称</span><input className="input h-8!" style={{ maxWidth: 320 }} value={title} onChange={e => {setTitle(e.target.value);stageConfig({title:e.target.value})}} onBlur={() => void saveConfig({title})} /></label>}
+          {projectId && (
+            <span role="status" className={cn('status', saveFailed ? 'status-danger' : saveBusy ? 'status-warn' : 'status-success')}>
+              {saveLabel}
+            </span>
+          )}
+          {projectId && saveFailed && <button className="btn btn-secondary h-8! text-body-sm" onClick={() => void flushConfig()}>重试保存（不生成）</button>}
           <span className="flex-1" />
           {parsed && (
             <div className="flex flex-wrap items-center gap-2 text-caption">
@@ -747,9 +757,7 @@ export function WizardPage() {
             </div>
           )}
         </div>
-        <div className="divider my-3" />
         {configConflict&&remoteConfig&&<div className="card"><p>项目配置已由其他窗口修改，本地草稿已保留。</p><details><summary>查看差异</summary><pre className="whitespace-pre-wrap">{JSON.stringify({本地草稿:configDraft.current,服务器:remoteConfig},null,2)}</pre></details><button className="btn btn-secondary" onClick={()=>{projectStamp.current=remoteConfig.updated_at;setConfigConflict(false);setDraftTick(n=>n+1)}}>采用本地草稿（覆盖对应字段）</button><button className="btn btn-secondary" onClick={()=>{configDraft.current={};if(projectId)localStorage.removeItem(configKey(projectId));projectStamp.current=remoteConfig.updated_at;setTitle(remoteConfig.title);setStylePackId(remoteConfig.style_pack_id||null);setProjectSize(remoteConfig.size||'2K');setPages(prev=>prev.map(p=>({...p,...remoteConfig.page_drafts?.find(d=>d.page_no===p.page_no),content_revision:p.slide_id?remoteConfig.content_revisions?.[p.slide_id]??p.content_revision:p.content_revision})));setConfigConflict(false);setSaveState('已保存')}}>采用服务器配置</button></div>}
-        {projectId&&<div role="status" className="flex gap-3 items-center mb-3"><span>保存状态：{[saveState,...(step===3?[contentSaveState]:[])].includes('保存失败')?'保存失败':[saveState,...(step===3?[contentSaveState]:[])].includes('正在保存')?'正在保存':[saveState,...(step===3?[contentSaveState]:[])].includes('未保存')?'未保存':'已保存'}</span>{saveState==='保存失败'&&<button className="btn btn-secondary" onClick={()=>void flushConfig()}>重试保存（不生成）</button>}</div>}
         <FlowSteps
           steps={WIZARD_STEPS}
           current={step}

@@ -292,3 +292,11 @@
 /* 文本域最小高度：.input 写死了 height:40px（单行），文本域至少要能舒服写几行。
    这里**只设 min-height**，不写 height —— 否则特异性会压掉 h-32 / h-40 / h-52 这类工具类。 */
 textarea.input { min-height: 96px; }
+
+/* 向导顶栏卡片：紧凑排版（标题/项目名/保存状态一行 + 收紧的步骤条），目标约原来的 2/3 高度 */
+.wizard-head { padding: 14px 18px; }
+.wizard-head .deck-stepper { margin-top: 8px; padding: 0 2px 2px; }
+.wizard-head .deck-step-button { padding: 1px 10px 1px 3px; gap: 8px; font-size: var(--text-body-sm); }
+.wizard-head .deck-step-number { width: 26px; height: 26px; font-size: var(--text-caption, 12px); }
+.wizard-head .deck-step-line { width: 16px; }
+.wizard-head .deck-step-hint { font-size: 11px; }
