@@ -43,6 +43,70 @@ function readMode(): Mode {
   return m === 'editable' || m === 'reskin' ? m : 'topic'
 }
 
+/* 设计师原创设计风格：独立区块（与上面的上传功能分开），分类筛选 + 4 列卡片 */
+function StyleGallery({ packs, loading, picked, onPick }: {
+  packs: StylePack[]; loading: boolean; picked: string | null; onPick: (id: string | null) => void
+}) {
+  const [category, setCategory] = useState('')
+  const [previewing, setPreviewing] = useState<string | null>(null)
+  const categories = [...new Set(packs.map((pack) => pack.category).filter(Boolean))]
+  const shown = category ? packs.filter((pack) => pack.category === category) : packs
+  const pickedName = packs.find((pack) => pack.id === picked)?.name
+  return (
+    <section id="style-gallery" className="band flex scroll-mt-20 flex-col gap-4" aria-label="设计师原创设计风格">
+      <div className="flex flex-wrap items-end gap-x-3 gap-y-1">
+        <div className="min-w-0">
+          <h2 className="m-0 text-h2 font-semibold">设计师原创设计风格</h2>
+          <p className="m-0 mt-1 text-body-sm text-ink-sub">
+            不同风格包会影响页面视觉风格、配图倾向、布局规范等。
+            {pickedName
+              ? <> 已选 <span className="font-semibold text-ink">{pickedName}</span>，开始生成时自动带上（第④步仍可更换）。</>
+              : ' 挑一个模板，开始生成时自动带上（第④步仍可更换）。'}
+          </p>
+        </div>
+        <span className="flex-1" />
+        <button type="button" className="link" onClick={() => navigate('/styles')}>全部风格 →</button>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2" role="tablist" aria-label="风格分类">
+        <button type="button" role="tab" aria-selected={!category} className={cn('style-chip', !category && 'is-active')} onClick={() => setCategory('')}>全部</button>
+        {categories.map((item) => (
+          <button key={item} type="button" role="tab" aria-selected={category === item}
+                  className={cn('style-chip', category === item && 'is-active')}
+                  onClick={() => setCategory((value) => (value === item ? '' : item))}>{item}</button>
+        ))}
+      </div>
+
+      {loading && <p className="m-0 text-body-sm text-ink-sub">正在读取风格库…</p>}
+      {!loading && !shown.length && <p className="m-0 text-body-sm text-ink-sub">这个分类下还没有可用模板。</p>}
+      {shown.length > 0 && (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4" role="listbox" aria-label="风格库模板">
+          {shown.map((pack) => (
+            <div
+              key={pack.id}
+              className="cursor-pointer"
+              /* 点卡片空白处即选中；点到内部按钮（预览/查看/选择此风格）时不抢行为 */
+              onClick={(event) => {
+                if ((event.target as HTMLElement).closest('button')) return
+                onPick(picked === pack.id ? null : pack.id)
+              }}
+            >
+              <StylePackCard
+                pack={pack}
+                selected={picked === pack.id}
+                previewing={previewing === pack.id}
+                onSelect={() => onPick(picked === pack.id ? null : pack.id)}
+                onPreview={() => setPreviewing((value) => (value === pack.id ? null : pack.id))}
+                onPreviewClose={() => setPreviewing((value) => (value === pack.id ? null : value))}
+              />
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}
+
 export function HomePage() {
   const [mode, setMode] = useState<Mode>(readMode)
   const [beautifyStep, setBeautifyStep] = useState(1)
@@ -61,6 +125,7 @@ export function HomePage() {
     if (window.location.hash !== next) window.location.hash = next
   }
 
+  const [pickedPack, setPickedPack] = useState<string | null>(null)
   const packs = useAsync(listStylePacks, [])
   const packOptions = packs.data?.items ?? []
 
@@ -87,12 +152,17 @@ export function HomePage() {
           </div>}
 
           <div className="min-w-0">
-            {mode === 'topic' && <TopicPanel packs={packOptions} packsLoading={packs.loading} />}
+            {mode === 'topic' && <TopicPanel pickedPack={pickedPack} />}
             {mode === 'editable' && <EditablePanel />}
             {mode === 'reskin' && <BeautifyPanel packs={packOptions} loadingPacks={packs.loading} onStepChange={setBeautifyStep} />}
           </div>
         </div>
       </section>
+
+      {/* 风格库模板：独立区块，与上面的上传功能分开 */}
+      {mode === 'topic' && !beautifyWorkbench && (
+        <StyleGallery packs={packOptions} loading={packs.loading} picked={pickedPack} onPick={setPickedPack} />
+      )}
     </div>
   )
 }
@@ -125,12 +195,9 @@ function PanelHead({ lead }: { lead: ReactNode }) {
 
 const DOC_ACCEPT = '.md,.markdown,.txt,.docx,.pdf,.pptx'
 
-function TopicPanel({ packs, packsLoading }: { packs: StylePack[]; packsLoading: boolean }) {
+function TopicPanel({ pickedPack }: { pickedPack: string | null }) {
   const [file, setFile] = useState<File | null>(null)
   const [error, setError] = useState<string | null>(null)
-  /* 风格库模板：在这里先挑一个，向导第④步会预选它（仍可更换） */
-  const [pickedPack, setPickedPack] = useState<string | null>(null)
-  const [previewing, setPreviewing] = useState<string | null>(null)
 
   const choose = (f: File | null) => {
     if (!f) return
@@ -181,42 +248,6 @@ function TopicPanel({ packs, packsLoading }: { packs: StylePack[]; packsLoading:
         </button>
       </div>
 
-      {/* 风格库模板：直接在这个页面下方挑，生成时带上；详情/大图沿用风格库同一套卡片 */}
-      <section className="flex flex-col gap-3 border-t border-border pt-4">
-        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-          <h2 className="m-0 text-h3">风格模板</h2>
-          <span className="text-body-sm text-ink-sub">
-            从风格库挑一个模板，开始生成时自动带上
-            {pickedPack ? <>（已选 <span className="font-semibold text-ink">{packs.find((p) => p.id === pickedPack)?.name ?? pickedPack}</span>，第④步仍可更换）</> : '（点卡片或「选择此风格」选中，再点一次取消）'}
-          </span>
-        </div>
-        {packsLoading && <p className="m-0 text-body-sm text-ink-sub">正在读取风格库…</p>}
-        {!packsLoading && !packs.length && <p className="m-0 text-body-sm text-ink-sub">风格库里还没有可用模板。</p>}
-        {packs.length > 0 && (
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4" role="listbox" aria-label="风格库模板">
-            {packs.map((pack) => (
-              <div
-                key={pack.id}
-                className="cursor-pointer"
-                /* 点卡片空白处即可选中；点到内部按钮（预览 / 查看 / 选择此风格）时不抢它的行为 */
-                onClick={(event) => {
-                  if ((event.target as HTMLElement).closest('button')) return
-                  setPickedPack((value) => (value === pack.id ? null : pack.id))
-                }}
-              >
-                <StylePackCard
-                  pack={pack}
-                  selected={pickedPack === pack.id}
-                  previewing={previewing === pack.id}
-                  onSelect={() => setPickedPack((value) => (value === pack.id ? null : pack.id))}
-                  onPreview={() => setPreviewing((value) => (value === pack.id ? null : pack.id))}
-                  onPreviewClose={() => setPreviewing((value) => (value === pack.id ? null : value))}
-                />
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
     </div>
   )
 }

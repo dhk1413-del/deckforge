@@ -300,3 +300,8 @@ textarea.input { min-height: 96px; }
 .wizard-head .deck-step-number { width: 26px; height: 26px; font-size: var(--text-caption, 12px); }
 .wizard-head .deck-step-line { width: 16px; }
 .wizard-head .deck-step-hint { font-size: 11px; }
+
+/* 首页风格库分类筛选胶囊 */
+.style-chip { display: inline-flex; align-items: center; padding: 6px 14px; border: 1px solid var(--color-border); border-radius: 999px; background: var(--color-surface); color: var(--color-ink-sub); font-size: var(--text-body-sm); cursor: pointer; transition: border-color .15s, color .15s, background .15s; }
+.style-chip:hover { border-color: var(--color-border-strong); color: var(--color-ink); }
+.style-chip.is-active { border-color: var(--color-primary); background: var(--color-primary); color: #fff; }
