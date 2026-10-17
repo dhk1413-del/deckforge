@@ -220,7 +220,7 @@
 @keyframes deck-spin { to { transform: rotate(360deg); } }
 @keyframes deck-loading-slide { 0% { transform: translateX(-110%); } 100% { transform: translateX(330%); } }
 .deck-loading { display: flex; flex-direction: column; align-items: center; gap: 20px; }
-.deck-loading-card { display: flex; width: 100%; max-width: 720px; flex-direction: column; align-items: center; gap: 10px; padding: 44px 32px; border: 1px solid var(--color-border); border-radius: 24px; background: var(--color-surface); box-shadow: var(--shadow-card); }
+.deck-loading-card { display: flex; width: 100%; max-width: min(960px, calc((100vh - 340px) * 16 / 9)); aspect-ratio: 16 / 9; min-height: 320px; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 32px; border: 1px solid var(--color-border); border-radius: 24px; background: var(--color-surface); box-shadow: var(--shadow-card); }
 .deck-spinner { width: 34px; height: 34px; border: 3px solid var(--color-border); border-top-color: var(--color-primary); border-radius: 50%; animation: deck-spin .9s linear infinite; }
 .deck-loading-title { margin: 8px 0 0; font-size: var(--text-h2); font-weight: 600; }
 .deck-loading-sub { margin: 0; color: var(--color-ink-sub); }
