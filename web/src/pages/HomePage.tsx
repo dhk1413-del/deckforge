@@ -13,17 +13,19 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { createProject, importPages, listStylePacks, type ApiError } from '../api'
 import { IconFolder, IconPalette, IconSparkles } from '../components/Icons'
 import { Dropzone } from '../components/Dropzone'
+import { StylePackCard } from '../components/StylePackCard'
 import { BeautifyPanel } from '../components/BeautifyPanel'
 import { useAsync } from '../hooks/useAsync'
 import { cn } from '../lib/format'
 import { sourceTypeOf } from '../lib/source'
 import { setPendingFile } from '../pendingFile'
 import { UPLOAD_SIZE_HINT, uploadTooLarge, MAX_UPLOAD_BYTES } from '../lib/format'
+import type { StylePack } from '../types'
 import { navigate } from '../router'
 
 type Mode = 'topic' | 'editable' | 'reskin'
 
-// ③ PPT美化：上传 → 逐页生图预览 → 确认后 Codex 全量重建。
+// ③ PPT美化：上传 → 逐页生图预览 → 确认后逐页精细重建可编辑版。
 const MODES: Array<{ id: Mode; label: string }> = [
   { id: 'topic', label: '文档导入生成' },
   { id: 'editable', label: '图片转可编辑' },
@@ -85,7 +87,7 @@ export function HomePage() {
           </div>}
 
           <div className="min-w-0">
-            {mode === 'topic' && <TopicPanel />}
+            {mode === 'topic' && <TopicPanel packs={packOptions} packsLoading={packs.loading} />}
             {mode === 'editable' && <EditablePanel />}
             {mode === 'reskin' && <BeautifyPanel packs={packOptions} loadingPacks={packs.loading} onStepChange={setBeautifyStep} />}
           </div>
@@ -123,9 +125,12 @@ function PanelHead({ lead }: { lead: ReactNode }) {
 
 const DOC_ACCEPT = '.md,.markdown,.txt,.docx,.pdf,.pptx'
 
-function TopicPanel() {
+function TopicPanel({ packs, packsLoading }: { packs: StylePack[]; packsLoading: boolean }) {
   const [file, setFile] = useState<File | null>(null)
   const [error, setError] = useState<string | null>(null)
+  /* 风格库模板：在这里先挑一个，向导第④步会预选它（仍可更换） */
+  const [pickedPack, setPickedPack] = useState<string | null>(null)
+  const [previewing, setPreviewing] = useState<string | null>(null)
 
   const choose = (f: File | null) => {
     if (!f) return
@@ -168,12 +173,50 @@ function TopicPanel() {
             // 交给既有的 6 步向导：上传 → ② 大纲/页清单 → ③ 梳理 → ④ 风格 → ⑤ 生成
             if (!file) return
             setPendingFile(file)
-            navigate('/wizard')
+            // 带上首页选中的风格模板（向导第④步会预选，仍可改）
+            navigate(pickedPack ? `/wizard?style=${encodeURIComponent(pickedPack)}` : '/wizard')
           }}
         >
           开始生成大纲
         </button>
       </div>
+
+      {/* 风格库模板：直接在这个页面下方挑，生成时带上；详情/大图沿用风格库同一套卡片 */}
+      <section className="flex flex-col gap-3 border-t border-border pt-4">
+        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+          <h2 className="m-0 text-h3">风格模板</h2>
+          <span className="text-body-sm text-ink-sub">
+            从风格库挑一个模板，开始生成时自动带上
+            {pickedPack ? <>（已选 <span className="font-semibold text-ink">{packs.find((p) => p.id === pickedPack)?.name ?? pickedPack}</span>，第④步仍可更换）</> : '（点卡片或「选择此风格」选中，再点一次取消）'}
+          </span>
+        </div>
+        {packsLoading && <p className="m-0 text-body-sm text-ink-sub">正在读取风格库…</p>}
+        {!packsLoading && !packs.length && <p className="m-0 text-body-sm text-ink-sub">风格库里还没有可用模板。</p>}
+        {packs.length > 0 && (
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4" role="listbox" aria-label="风格库模板">
+            {packs.map((pack) => (
+              <div
+                key={pack.id}
+                className="cursor-pointer"
+                /* 点卡片空白处即可选中；点到内部按钮（预览 / 查看 / 选择此风格）时不抢它的行为 */
+                onClick={(event) => {
+                  if ((event.target as HTMLElement).closest('button')) return
+                  setPickedPack((value) => (value === pack.id ? null : pack.id))
+                }}
+              >
+                <StylePackCard
+                  pack={pack}
+                  selected={pickedPack === pack.id}
+                  previewing={previewing === pack.id}
+                  onSelect={() => setPickedPack((value) => (value === pack.id ? null : pack.id))}
+                  onPreview={() => setPreviewing((value) => (value === pack.id ? null : pack.id))}
+                  onPreviewClose={() => setPreviewing((value) => (value === pack.id ? null : value))}
+                />
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   )
 }

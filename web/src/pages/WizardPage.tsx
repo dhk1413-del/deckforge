@@ -342,7 +342,13 @@ export function WizardPage() {
       setTargetPages(count)
       setPages(draftPages(count))
       toast.success(`已解析 ${file.name}`, `${res.char_count} 字 · 建议 ${count} 页`)
-      if (stylePackId) await configureProject(id, {style_pack_id: stylePackId})
+      /* 首页带过来的 ?style= 要在这里再兜一次：handleFile 由挂载时的 effect 触发，
+         闭包里的 stylePackId 还是初始 null（状态尚未刷新） */
+      const initialStyle = stylePackId || readQuery().style || ''
+      if (initialStyle) {
+        if (!stylePackId) setStylePackId(initialStyle)
+        await configureProject(id, {style_pack_id: initialStyle})
+      }
       goto(2, id)
       // 上传完直接开始梳理内容：不再让用户在第②步二次确认（要重来可用「重新梳理」）
       void runOutline(id, count)
