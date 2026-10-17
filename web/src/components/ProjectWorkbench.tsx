@@ -1,4 +1,3 @@
-import { ExportPanel } from './ExportPanel'
 import { configureProject } from '../api'
 /**
  * 生成结果（第 ⑤ 步）：POST /generate → SSE 逐页进度 → 缩略图网格 → 导出图片版 PPTX
@@ -440,7 +439,6 @@ export function ProjectWorkbench({
         <EditableWorkbench projectId={projectId} autoStart={autoEditable} />
       ) : null}
 
-      <ExportPanel projectId={projectId} slides={slides}/>
 
       <p className="m-0 text-caption text-ink-sub">
         数据来源：GET /api/projects/{projectId}/slides
