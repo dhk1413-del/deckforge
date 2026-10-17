@@ -1,6 +1,7 @@
 import { useModalFocus } from '../hooks/useModalFocus'
 /** 风格包卡片：分类角标 + 配色块 + 布局数；状态 默认 / 已选 / 查看中（components.md）。简介只在详情页展示。 */
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { safeHex } from '../lib/format'
 import { cn } from '../lib/format'
 import type { StylePack } from '../types'
@@ -117,16 +118,23 @@ export function StylePackCard({
   previewing,
   onSelect,
   onPreview,
+  onPreviewClose,
 }: {
   pack: StylePack
   selected: boolean
   previewing?: boolean
   onSelect: () => void
   onPreview?: () => void
+  /** 灯箱关闭时回调（父级据此取消「查看中」状态） */
+  onPreviewClose?: () => void
 }) {
   const accent = safeHex(pack.accent, 'var(--color-accent)')
   const bg = safeHex(pack.bg, 'var(--color-surface-alt)')
   const [shot, setShot] = useState(false)
+  const closeShot = () => {
+    setShot(false)
+    onPreviewClose?.()
+  }
 
   return (
     <div
@@ -178,7 +186,11 @@ export function StylePackCard({
           ))}
         </div>
       )}
-      {shot && <CoverLightbox pack={pack} onClose={() => setShot(false)} />}
+      {shot &&
+        // 必须 portal 到 body：卡片本身带 .card-interactive，鼠标悬停时 transform 会生效，
+        // 而 transform 祖先会成为 position:fixed 的包含块 —— 灯箱会被关进卡片里（显示错位），
+        // 且 hover 命中随遮罩尺寸来回切换，遮罩在卡片大小与全屏之间反复跳（一直闪）。
+        createPortal(<CoverLightbox pack={pack} onClose={closeShot} />, document.body)}
 
       <div className="flex flex-wrap items-center gap-2">
         {pack.tags.map((t) => (
