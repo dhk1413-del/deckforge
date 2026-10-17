@@ -762,7 +762,6 @@ export function WizardPage() {
           steps={WIZARD_STEPS}
           current={step}
           locks={locked}
-          hints={locked}
           errorAt={errorAt}
           busy={taskRunning}
           onJump={(s) => goto(s as WizardStepNo)}
