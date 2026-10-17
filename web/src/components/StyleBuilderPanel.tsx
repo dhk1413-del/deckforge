@@ -301,6 +301,8 @@ export function StyleBuilderPanel({
   const bid = uploadRes?.builder_id ?? null
   const bidRef = useRef<string | null>(null)
   const phaseRef = useRef<Phase>(phase)
+  /** 上传在途：拖拽 / 点选 / 粘贴可能并发触发，重复上传会白建一个后端临时目录 */
+  const uploadingRef = useRef(false)
   /** 已把 suggested 灌进表单的 builder_id（避免轮询把用户改过的输入覆盖掉） */
   const seededRef = useRef('')
 
@@ -362,6 +364,7 @@ export function StyleBuilderPanel({
 
   const resetAll = useCallback(() => {
     seededRef.current = ''
+    uploadingRef.current = false
     setUploadRes(null)
     setJobId(null)
     setPhase('pick')
@@ -387,7 +390,8 @@ export function StyleBuilderPanel({
 
   const onPick = useCallback(
     async (files: File[]) => {
-      if (!files.length) return
+      if (!files.length || uploadingRef.current) return
+      uploadingRef.current = true
       setActionError(null)
       setUploading(true)
       try {
@@ -404,6 +408,7 @@ export function StyleBuilderPanel({
         setActionError(d)
         toast.error('上传失败', d)
       } finally {
+        uploadingRef.current = false
         setUploading(false)
       }
     },
@@ -567,10 +572,11 @@ export function StyleBuilderPanel({
         <div className="flex flex-col gap-2">
           <Dropzone
             head="上传模板或参考图"
-            hint="拖进来或点击选择；解析结果先给你确认，确认后才落成风格包"
+            hint="拖进来、点击选择，或直接粘贴截图；解析结果先给你确认，确认后才落成风格包"
             formats={FORMAT_HINT}
             accept={ACCEPT_ATTR}
             multiple
+            paste
             onPick={(files) => void onPick(files)}
           />
           {uploading && <Loading rows={1} label="正在上传…" />}
