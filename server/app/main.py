@@ -408,6 +408,40 @@ def delete_project(pid: str) -> Dict[str, Any]:
                     note="项目记录与磁盘文件已删除；用量账本保留 %d 条成本记录，删除项目不抹账" % kept)
 
 
+# 上传上限：前端先挡一道，后端这里再流式校验（DECKFORGE_MAX_UPLOAD_MB 可按机器内存调整）
+MAX_UPLOAD_MB = max(1, int(os.environ.get("DECKFORGE_MAX_UPLOAD_MB") or 200))
+MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024
+_UPLOAD_CHUNK = 1024 * 1024
+
+
+async def _save_upload(file: "UploadFile", path: str, limit: int = MAX_UPLOAD_BYTES) -> int:
+    """边收边写盘并计数：超过上限立刻中断并删掉半截文件。
+
+    不用 `await file.read()` 整块读，是为了让 200MB 级别的上传也不会把整份文件
+    压在内存里（NAS 虚拟机只有 1.9GB 内存）。
+    """
+    total = 0
+    open_file = open(path, "wb")
+    try:
+        with open_file as handle:
+            while True:
+                chunk = await file.read(_UPLOAD_CHUNK)
+                if not chunk:
+                    break
+                total += len(chunk)
+                if total > limit:
+                    raise HTTPException(413, "文件超过 %dMB 上限（已接收 %.1fMB），请压缩或拆分后再传"
+                                        % (limit // 1048576, total / 1048576))
+                handle.write(chunk)
+    except HTTPException:
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+        raise
+    return total
+
+
 @app.post("/api/projects/{pid}/upload")
 async def upload(pid: str, file: Optional[UploadFile] = File(None),
                  text: Optional[str] = Body(None, embed=True)) -> Dict[str, Any]:
@@ -418,10 +452,8 @@ async def upload(pid: str, file: Optional[UploadFile] = File(None),
     src_dir = os.path.join(config.FILES_DIR, pid)
     os.makedirs(src_dir, exist_ok=True)
     if file is not None:
-        raw = await file.read()
         path = os.path.join(src_dir, "source" + os.path.splitext(file.filename or "x.txt")[1])
-        with open(path, "wb") as f:
-            f.write(raw)
+        await _save_upload(file, path)
         try:
             parsed = pipeline.parse_file(path, file.filename or "x.txt")
         except Exception as e:                        # noqa: BLE001
@@ -539,13 +571,15 @@ async def import_pages(pid: str, files: List[UploadFile] = File(...)) -> Dict[st
     os.makedirs(dest_dir, exist_ok=True)
     saved: List[str] = []
     for index, item in enumerate(files or []):
-        raw = await item.read()
-        if not raw:
-            continue
         ext = os.path.splitext(item.filename or "")[1].lower()
         path = os.path.join(dest_dir, "src%02d%s" % (index + 1, ext or ".bin"))
-        with open(path, "wb") as f:
-            f.write(raw)
+        written = await _save_upload(item, path)
+        if not written:                       # 空文件跳过（与原逻辑一致）
+            try:
+                os.remove(path)
+            except OSError:
+                pass
+            continue
         saved.append(path)
     if not saved:
         raise HTTPException(400, "没有收到可用的文件")

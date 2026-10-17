@@ -258,7 +258,7 @@ function TopicPanel({ pickedPack, pickedName }: { pickedPack: string | null; pic
 
       <div className="gen-panel-foot">
         <span className="text-body-sm text-ink-sub">
-          {file ? '已选择 1 个文件，点右侧开始' : '支持 TXT · MD · DOCX · PDF · PPTX，单文件最大 60MB'}
+          {file ? '已选择 1 个文件，点右侧开始' : `支持 TXT · MD · DOCX · PDF · PPTX，${UPLOAD_SIZE_HINT}`}
         </span>
         <button
           type="button"

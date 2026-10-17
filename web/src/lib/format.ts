@@ -4,7 +4,7 @@
 export const BACKEND_HINT = '后端未响应 —— 在项目根目录执行 bash server/start-lan.sh（默认 127.0.0.1:8641），然后点「重试」'
 
 /** 单文件上传上限（前端守卫；后端不设上限）。文案与各处守卫共用，避免改一处漏一处。 */
-export const MAX_UPLOAD_MB = 60
+export const MAX_UPLOAD_MB = 200
 export const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024
 /** Dropzone 里显示的格式+大小提示（各流程格式不同，大小这部分统一取这里） */
 export const UPLOAD_SIZE_HINT = `单文件最大 ${MAX_UPLOAD_MB}MB`

@@ -15,7 +15,7 @@ const BEAUTIFY_STEP_LABELS = ['上传内容', '页面确认', '内容梳理', '�
 const BEAUTIFY_STEPS: FlowStep[] = BEAUTIFY_STEP_LABELS.map((label, index) => ({ key: index + 1, label }))
 
 const BEAUTIFY_STAGES: Record<string, string> = {
-  render: '原稿转图', beauty: '逐页生图', editable: '转可编辑', assemble: '组装导出',
+  render: '原稿转图', beauty: '逐页生图', editable: '精细重建', assemble: '组装导出',
 }
 const errorDetail = (e: unknown) => (e as ApiError)?.detail || (e instanceof Error ? e.message : String(e))
 const STYLES_PER_PAGE = 6
@@ -114,7 +114,7 @@ export function BeautifyPanel({ packs, loadingPacks, onStepChange, resumeProject
   const [editableJobId, setEditableJobId] = useState<string | null>(null)
   const [editableBusy, setEditableBusy] = useState(false)
   const editableStream = useJobStream(editableJobId, {
-    onDone: () => { setEditableBusy(false); toast.success('可编辑版已重建', '可在下方下载可编辑版 PPT'); void refresh(true) },
+    onDone: () => { setEditableBusy(false); toast.success('精细重建完成', '可在下方下载可编辑版 PPT'); void refresh(true) },
     onError: (message) => { setEditableBusy(false); setError(message); void refresh(true, message) },
     onCancelled: () => { setEditableBusy(false); void refresh(true) },
   })
@@ -252,7 +252,7 @@ export function BeautifyPanel({ packs, loadingPacks, onStepChange, resumeProject
       const job = await beautifyEditable(projectId, { style_pack_id: packId })
       if (!job.job_id) throw new Error('后端没有返回作业号')
       setEditableJobId(job.job_id)
-      toast.info('已开始重建原生可编辑版', '这一步不会自动执行；完成后可下载可编辑版 PPT')
+      toast.info('已开始精细重建可编辑版', '文字/图片/图形/背景分别拆分；完成后可下载可编辑版 PPT')
     } catch (e) { setEditableBusy(false); setError(errorDetail(e)) }
   }
 
@@ -433,7 +433,7 @@ export function BeautifyPanel({ packs, loadingPacks, onStepChange, resumeProject
         </div>}
         </div>
         <div className="gen-panel-foot">
-          <span className="text-body-sm text-ink-sub">{file ? '已选择文件，点右侧开始分析页面' : '支持 PPTX · PDF，单文件最大 60MB'}</span>
+          <span className="text-body-sm text-ink-sub">{file ? '已选择文件，点右侧开始分析页面' : `支持 PPTX · PDF，${UPLOAD_SIZE_HINT}`}</span>
           <button type="button" className="btn btn-primary rounded-full px-6" disabled={!file || busy} onClick={() => void recognize()}>{busy ? '正在分析页面…' : '开始 PPT 美化'}</button>
         </div>
         {busy && <p role="status" className="m-0 text-body-sm text-ink-sub">正在上传文件并分析页面，请稍候…</p>}
@@ -679,7 +679,7 @@ export function BeautifyPanel({ packs, loadingPacks, onStepChange, resumeProject
         <button type="button" className="btn btn-secondary rounded-full" disabled={busy} onClick={() => setStep(3)}>返回内容梳理</button>
         <button type="button" className="btn btn-primary rounded-full px-6" disabled={busy || !packId || !selected.length || !contentSaved} onClick={() => void startPreview()}>生成前 <span className="num">{Math.min(3, selected.length)}</span> 页预览</button>
       </ActionBar>}
-      {step === 5 && editableBusy && <div className="panel-alt text-body-sm" role="status">{editableStream.message || '正在重建原生可编辑版…'}</div>}
+      {step === 5 && editableBusy && <div className="panel-alt text-body-sm" role="status">{editableStream.message || '正在精细重建可编辑版…'}</div>}
       {versionPreview && (
         <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-3 bg-black/70 p-4" role="dialog" aria-modal="true"
              aria-label="历史版本预览" onClick={() => setVersionPreview(null)}>
@@ -710,8 +710,8 @@ export function BeautifyPanel({ packs, loadingPacks, onStepChange, resumeProject
         <button type="button" className="btn btn-secondary rounded-full" disabled={busy || jobActive} onClick={() => setStep(4)}>重新选择风格</button>
         {result.phase === 'preview' && <button type="button" className="btn btn-primary rounded-full" disabled={busy || (!result.exports.image && stream.status !== 'cancelled')} onClick={() => void continueAll()}>{busy ? '正在生成…' : '确认预览，生成全部所选页面'}</button>}
         {result.phase === 'done' && <button type="button" className="btn btn-secondary rounded-full" disabled={busy || editableBusy}
-          title={result.exports.editable ? '重新重建一次可编辑版' : '按需把图片版转成原生可编辑版（生成图片时不会自动执行）'}
-          onClick={() => void convertEditable()}>{editableBusy ? '正在重建…' : result.exports.editable ? '重新转可编辑版' : '转文字可编辑版'}</button>}
+          title={result.exports.editable ? '重新精细重建一次可编辑版' : '按需把图片版精细重建为可编辑版（文字/图片/图形/背景分别拆分；生成图片时不会自动执行）'}
+          onClick={() => void convertEditable()}>{editableBusy ? '正在精细重建…' : result.exports.editable ? '重新精细重建' : '转可编辑版（精细重建）'}</button>}
         {result.exports.editable && <a className="btn btn-primary rounded-full" href={result.exports.editable} download>下载可编辑版 PPT</a>}
         {result.exports.image && <a className={cn('btn rounded-full', result.exports.editable ? 'btn-secondary' : result.phase === 'preview' ? 'btn-secondary' : 'btn-primary')} href={result.exports.image} download>下载图片集 PPT</a>}
       </ActionBar>}
