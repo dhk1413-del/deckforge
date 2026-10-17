@@ -7,6 +7,48 @@
 `tools/check_version_sync.py` 在门禁里强制对齐，`server/app/main.py` 直接读该文件（`/api/health` 可查）。
 发版流程见 [AGENTS.md](AGENTS.md#发版流程)。
 
+## [0.2.0] - 2026-10-17
+
+### 新增
+
+- **用量页接入供应商面板**：新增 `GET /api/provider-usage`，按 New API 兼容计费接口读取面板侧的
+  「累计已用额度 + 额度上限」，按面板汇率折算人民币，并与上次成功快照做**差额**；
+  服务端缓存 60 秒（`refresh=1` 绕过）。面板接口忽略日期区间、只给累计值，所以口径明确标注为
+  「累计 + 与上次快照的差额」；**key 绝不出现在响应与日志**。新增离线回归
+  `tools/test_provider_usage.py`（计费/币种折算/快照增量/缓存/脱敏），已挂进 `make verify`。
+- **PPT 美化**：多页并发生成（上限 3 → 8）；新增「优化本页」（单页重生成可带修改要求，最长 400 字）
+  与**页级历史版本**（每页最多 5 个，可回滚；回滚前自动归档当前图，因此可再切回）。
+- **图片转可编辑**：接入 `image-to-editable-ppt` 的新状态机（`run next --json` 决策 + 并发 dispatch），
+  默认 **2 页并发**（`editppt.max_concurrent_pages` 可配，skill 上限 6）；page worker 改用 Harness headless
+  （`editppt.agent` 可切回 hermes）；新增无文字真源时的**离线 OCR 兜底** `server/pptx/editppt_ocr.py`
+  （优先 skill 的 PaddleOCR hints，其次本机 RapidOCR）；失败保留已完成页与现场，可续跑。
+- **首页**：风格库改为独立区块（标题 / 分类筛选 / 全部风格 / 4 列），「文档导入生成」下方直接展示风格模板并带进向导。
+- **风格构建**：上传区支持截图直接粘贴上传（⌘V / Ctrl+V）。
+- **风格库**：模板在「图片转可编辑」「PPT 美化」下也显示；双蓝绿 / 双蓝橙预览图整备
+  （双蓝绿换成重新生成的 5 张统一风格样例图）。
+
+### 变更
+
+- 「转换与导出」模块整体移除（前端 `ExportPanel` 删除）。
+- 移除 Codex 引擎：`server/app/codex_engine.py` 删除，`/api/codex-engine` 端点移除；
+  美化状态字段 `codex` → `editable_engine`（[`docs/API.md`](docs/API.md) 已同步）。
+- 向导顶栏卡片紧凑化（315px → 149px）；步骤条去掉锁定原因小字；大纲生成卡片改 16:9；
+  大纲编辑弹窗「本页原文」输入框加大（顺带修掉所有文本域被压成 40px 的根因）；
+  生成方式切换时功能框尺寸不再跳动。
+- 图片转可编辑把「确认设计 → 生成页面」做成真门禁。
+
+### 修复
+
+- **回归测试口径**：m5 / m7 仍按 5 步时代断言 `resume_step=5`，而实现自 08d2d66「6 步流程」起已改为 6
+  （⑥=生成页面）。已按当前 6 步口径修正测试——`make verify-fast` 据此**首次全绿**
+  （此前 m5 一直失败并挡住 m6/m7，实际 m7 也有一处同类失败）。
+- 修复风格卡「查看」灯箱一直闪（portal 到 body，逃出卡片 hover transform 的包含块）。
+
+### 升级
+
+- **无新增 Python / Node 依赖**，`data/` 与 `DECKFORGE_*` 变量保持不变，替换代码后重启即可。
+- 离线 OCR 为可选项：需在 editppt 的 venv 里装 RapidOCR（未装时会跳过该兜底并如实提示，不影响主流程）。
+
 ## [0.1.0] - 2026-10-16
 
 首个公开版本。
@@ -52,3 +94,4 @@
 - 内部回归 `server/tests/test_m5.py::test_interruption_is_terminal_and_reentrant` 目前失败
   （`resume_step` 期望 5、实际 6）。该失败在打本标签之前就已存在（干净检出可复现），尚未修复；
   其余 16 项离线检查与前端构建均通过。
+  → **已在 [0.2.0] 修复**：属测试断言过时（实现自 6 步流程起就是 6），不是产品缺陷。

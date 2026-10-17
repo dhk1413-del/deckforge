@@ -47,8 +47,10 @@ class MilestoneFive(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(HTTPException) as caught:
             await main.cancel_job('old')
         self.assertEqual(caught.exception.status_code, 400)
-        self.assertEqual(main.get_project('p')['resume_step'], 5)
-        self.assertEqual(main.list_projects()['items'][0]['resume_step'], 5)
+        # 向导自 08d2d66「文档生成：6 步流程」起共 6 步（⑥=生成页面），已生成过的项目应回到第 6 步。
+        # 这两个断言原写 5（5 步时代），属断言过时而非实现回归——已按当前流程口径修正。
+        self.assertEqual(main.get_project('p')['resume_step'], 6)
+        self.assertEqual(main.list_projects()['items'][0]['resume_step'], 6)
 
     async def test_version_transaction_rolls_back_together(self):
         conn = db.connect()

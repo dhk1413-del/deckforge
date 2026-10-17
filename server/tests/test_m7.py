@@ -37,7 +37,8 @@ class MilestoneSeven(unittest.TestCase):
         self.assertEqual(listed['page_count'], 1)
         db.update('slides', self.pid+'-s', dict(status='interrupted', error='隔离测试中断原因'))
         db.update('projects', self.pid, dict(status='interrupted'))
-        self.assert_stage(5)
+        # 08d2d66「6 步流程」起「已生成」对应第 6 步（⑥=生成页面）；原断言 5 属过时口径，非实现回归。
+        self.assert_stage(6)
         slide = main.slides(self.pid)['items'][0]
         self.assertEqual(slide['slide_id'], self.pid+'-s')
         self.assertEqual(slide['error'], '隔离测试中断原因')

@@ -1,58 +1,51 @@
-# SlideCraft v0.1.0
+# SlideCraft v0.2.0
 
-自托管的「输入内容 → 一整套风格统一 PPT」工作台，**首个公开版本**。
+自托管的「输入内容 → 一整套风格统一 PPT」工作台。
 
-## 这个版本能做什么
+## 本版亮点
 
-- **文档生成**：上传 Markdown / TXT / DOCX / PDF / PPTX，或直接粘贴文本 → 梳理页面 → 按选定风格逐页出图 → 导出整套 PPT。
+- **用量对账**：用量页新增「供应商面板侧用量」——直连 New API 兼容计费接口，读面板的累计已用额度与额度上限，
+  按面板汇率折算人民币，并给出与上次快照的差额。只读、不产生模型费用；**key 不会出现在响应或日志里**。
+- **PPT 美化更好用**：多页并发生成（上限 3 → 8）；新增「**优化本页**」（可写修改要求，单页重生成）
+  与**页级历史版本**（每页最多 5 个，可一键回滚，回滚后也能再切回来）。
+- **图片转可编辑更快**：接入 `image-to-editable-ppt` 的新状态机，**默认 2 页并发**（可配，skill 上限 6）；
+  没有文字真源时用**离线 OCR**（RapidOCR）补文字；失败会保留已完成页与现场，可续跑。
+- **首页改版**：风格库成为独立区块（分类筛选 / 全部风格 / 4 列），「文档导入生成」下方直接选风格并带进向导。
+- **用起来更顺**：风格构建支持截图直接粘贴（⌘V / Ctrl+V）；向导顶栏更紧凑，大纲编辑弹窗的原文输入框更好用。
+
+## 这个版本能做什么（总览）
+
+- **文档生成**：上传 Markdown / TXT / DOCX / PDF / PPTX 或粘贴文本 → 大纲 → 内容梳理 → 选风格 → 生成 → 导出整套 PPT。
 - **PPT 美化**：拿参考图重做每一页，可按需转成可编辑版。
 - **图片转可编辑**：把整页图转成以文字/形状为原生对象的 PPTX。
 - **讲稿备注**：为每一页生成备注。
-- **两条导出路线**：图片版 PPTX（整页图铺底）与**原生可编辑** PPTX（文本/形状/图表都是 PowerPoint 原生对象）。
-- **零密钥也能跑**：不填任何模型 key，全流程走本地兜底渲染，成本 **0**，流程与导出都走得通。
-- **零依赖单文件版**：`slidecraft-standalone.html` 双击即可离线使用，数据存在浏览器里。
-
-## 安装（源码）
-
-需要 Python 3.12 与 Node.js 22（≥22.12）；处理 PPTX 另需 LibreOffice。
-
-```bash
-git clone https://github.com/dhk1413-del/slidecraft.git
-cd slidecraft
-npm --prefix web install
-npm --prefix web run build
-bash server/start-lan.sh
-```
-
-打开 <http://127.0.0.1:8641>。服务默认只监听本机、无登录鉴权，只在可信网络里用。
-Windows 与 macOS 均支持；也可以把 [README 的安装要求](https://github.com/dhk1413-del/slidecraft#安装)交给 AI 助手代装。
+- **两条导出路线**：图片版 PPTX（整页图铺底）与**原生可编辑** PPTX。
+- **零密钥也能跑**：不填任何模型 key，全流程走本地兜底渲染，成本 **0**。
+- **零依赖单文件版**：`slidecraft-standalone.html` 双击即可离线使用。
 
 ## 升级
 
-首个版本，无需迁移。若你此前用的是 **DeckForge** 源码：`DECKFORGE_*` 环境变量、`data/` 目录与数据库文件名
-**保持不变**，直接替换代码、重启后端即可，已有项目与草稿都还在。
+- **无新增 Python / Node 依赖**：替换代码后重启后端即可。
+- `data/` 目录、`DECKFORGE_*` 环境变量、数据库文件名都**没有变**，已有项目、草稿与账本原样保留。
+- 离线 OCR 是可选项：需要时在 editppt 的 venv 里装 RapidOCR；不装会跳过该兜底并如实提示，不影响主流程。
+- 从 **DeckForge** 旧源码升级同样直接替换代码，无需迁移。
 
-## 名称说明
+## 变更与移除
 
-项目现名 **SlideCraft**。为了让已有数据和部署配置不作废，内部标识（环境变量名、数据库/运行文件名、
-浏览器存储键）沿用原名，属于**刻意保留**，不是遗漏。
+- 移除 Codex 引擎（`/api/codex-engine` 下线，美化状态字段 `codex` → `editable_engine`）；
+  可编辑重建统一走 `image-to-editable-ppt` 精细重建引擎。接口口径见
+  [`docs/API.md`](https://github.com/dhk1413-del/slidecraft/blob/main/docs/API.md)。
+- 「转换与导出」模块整体移除。
 
-## 密钥安全
+## 质量
 
-模型 API key 只存在于你本机的 `.env` 或界面设置页（存本地数据库），**本仓库与本次发布不含任何密钥**。
-仓库自带 `pre-commit` / `pre-push` 门禁与 `tools/check_no_secrets.py`，默认拦住 key 的提交与推送。
-
-## 已知问题
-
-- 内部回归 `server/tests/test_m5.py::test_interruption_is_terminal_and_reentrant` 有一处断言失败
-  （`resume_step` 期望 5、实际 6），**在打本标签之前就存在**，不影响零密钥主流程，尚未修复。
-  其余 16 项离线检查与前端构建通过。
+- 离线回归 **17 项全过** + 前端构建通过；`make verify-fast` **首次全绿**。
+  本版顺带修正了 m5 / m7 里两处 5 步时代的过时断言（`resume_step` 5 → 6，实现自 6 步流程起就是 6）。
+- 仓库自带密钥门禁（pre-commit / pre-push），历史与远端经全量扫描确认不含任何密钥。
 
 ## 许可证
 
-**AGPL-3.0**（见 `LICENSE`）。注意依赖 PyMuPDF 本身即 AGPL-3.0 / 商业双授权，因此本项目的许可证选择与
-依赖义务是一致的。第三方依赖的许可清单见
-[README「许可证」](https://github.com/dhk1413-del/slidecraft#许可证)。
+**AGPL-3.0**（见 `LICENSE`）。依赖 PyMuPDF 本身即 AGPL-3.0 / 商业双授权，因此本项目的许可证选择与依赖义务一致。
 
 ---
 
