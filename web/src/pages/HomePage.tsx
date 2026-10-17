@@ -44,8 +44,8 @@ function readMode(): Mode {
 }
 
 /* 设计师原创设计风格：独立区块（与上面的上传功能分开），分类筛选 + 4 列卡片 */
-function StyleGallery({ packs, loading, picked, onPick }: {
-  packs: StylePack[]; loading: boolean; picked: string | null; onPick: (id: string | null) => void
+function StyleGallery({ packs, loading, picked, onPick, mode }: {
+  packs: StylePack[]; loading: boolean; picked: string | null; onPick: (id: string | null) => void; mode: Mode
 }) {
   const [category, setCategory] = useState('')
   const [previewing, setPreviewing] = useState<string | null>(null)
@@ -59,9 +59,11 @@ function StyleGallery({ packs, loading, picked, onPick }: {
           <h2 className="m-0 text-h2 font-semibold">设计师原创设计风格</h2>
           <p className="m-0 mt-1 text-body-sm text-ink-sub">
             不同风格包会影响页面视觉风格、配图倾向、布局规范等。
-            {pickedName
-              ? <> 已选 <span className="font-semibold text-ink">{pickedName}</span>，开始生成时自动带上（第④步仍可更换）。</>
-              : ' 挑一个模板，开始生成时自动带上（第④步仍可更换）。'}
+            {mode === 'editable'
+              ? ' 图片转可编辑是按已有页面重建，不套用风格模板；这里可以浏览并点「查看」看大图。'
+              : pickedName
+                ? <> 已选 <span className="font-semibold text-ink">{pickedName}</span>，开始{ mode === 'reskin' ? '美化' : '生成' }时自动带上（第④步仍可更换）。</>
+                : ` 挑一个模板，开始${ mode === 'reskin' ? '美化' : '生成' }时自动带上（第④步仍可更换）。`}
           </p>
         </div>
         <span className="flex-1" />
@@ -93,7 +95,8 @@ function StyleGallery({ packs, loading, picked, onPick }: {
             >
               <StylePackCard
                 pack={pack}
-                selected={picked === pack.id}
+                /* 图片转可编辑不套用风格：即使别处选过，这里也不显示「已选」 */
+                selected={mode === 'editable' ? false : picked === pack.id}
                 previewing={previewing === pack.id}
                 onSelect={() => onPick(picked === pack.id ? null : pack.id)}
                 onPreview={() => setPreviewing((value) => (value === pack.id ? null : pack.id))}
@@ -154,14 +157,23 @@ export function HomePage() {
           <div className="min-w-0">
             {mode === 'topic' && <TopicPanel pickedPack={pickedPack} />}
             {mode === 'editable' && <EditablePanel />}
-            {mode === 'reskin' && <BeautifyPanel packs={packOptions} loadingPacks={packs.loading} onStepChange={setBeautifyStep} />}
+            {mode === 'reskin' && <BeautifyPanel packs={packOptions} loadingPacks={packs.loading} onStepChange={setBeautifyStep} initialStylePackId={pickedPack} />}
           </div>
         </div>
       </section>
 
-      {/* 风格库模板：独立区块，与上面的上传功能分开 */}
-      {mode === 'topic' && !beautifyWorkbench && (
-        <StyleGallery packs={packOptions} loading={packs.loading} picked={pickedPack} onPick={setPickedPack} />
+      {/* 风格库模板：独立区块，与上面的上传功能分开；三种模式都显示 */}
+      {!beautifyWorkbench && (
+        <StyleGallery
+          packs={packOptions}
+          loading={packs.loading}
+          picked={pickedPack}
+          mode={mode}
+          onPick={(id) => {
+            if (mode === 'editable') return   /* 图片转可编辑不套用风格：不记选中，避免假装生效 */
+            setPickedPack(id)
+          }}
+        />
       )}
     </div>
   )

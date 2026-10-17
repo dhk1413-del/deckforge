@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { beautifyOrigin, beautifyContinue, beautifyEditable, beautifyPreview, beautifyRegeneratePage, beautifyRestoreVersion, beautifyVersions, codexEngine, createProject, getBeautify, getProject, getProjectJobs, uploadSource, prepareBeautifyContent, saveBeautifyContent, type ApiError } from '../api'
+import { beautifyOrigin, beautifyContinue, beautifyEditable, beautifyPreview, beautifyRegeneratePage, beautifyRestoreVersion, beautifyVersions, createProject, getBeautify, getProject, getProjectJobs, uploadSource, prepareBeautifyContent, saveBeautifyContent, type ApiError } from '../api'
 import { IconFolder } from './Icons'
 import { Dropzone } from './Dropzone'
 import { ActionBar, FlowSteps, OverviewGrid, PageLightbox, PageRail, PageSelectGrid, PagerArrow, withVersion, type FlowStep } from './FlowKit'
@@ -7,7 +7,7 @@ import { useToast } from './Toast'
 import { useModalFocus } from '../hooks/useModalFocus'
 import { useJobStream } from '../hooks/useJobStream'
 import { MAX_UPLOAD_BYTES, UPLOAD_SIZE_HINT, bytes, cn, uploadTooLarge } from '../lib/format'
-import type { BeautifyStatus, BeautifyVersionsResponse, CodexEngineStatus, BeautifyContentPlan, StylePack } from '../types'
+import type { BeautifyStatus, BeautifyVersionsResponse, BeautifyContentPlan, StylePack } from '../types'
 
 /* ─────────────── ③ PPT美化：上传 / 预览 / 完成 ─────────────── */
 
@@ -15,7 +15,7 @@ const BEAUTIFY_STEP_LABELS = ['上传内容', '页面确认', '内容梳理', '�
 const BEAUTIFY_STEPS: FlowStep[] = BEAUTIFY_STEP_LABELS.map((label, index) => ({ key: index + 1, label }))
 
 const BEAUTIFY_STAGES: Record<string, string> = {
-  render: '原稿转图', beauty: '逐页生图', codex: 'Codex 转可编辑', assemble: '组装导出',
+  render: '原稿转图', beauty: '逐页生图', editable: '转可编辑', assemble: '组装导出',
 }
 const errorDetail = (e: unknown) => (e as ApiError)?.detail || (e instanceof Error ? e.message : String(e))
 const STYLES_PER_PAGE = 6
@@ -58,7 +58,7 @@ function OptimizeDialog({ pageNo, onClose, onConfirm }: { pageNo: number; onClos
 /** ③内容梳理的真实阶段：每一步都对应代码里实际做的事，不写做不到的耗时承诺 */
 const CONTENT_STAGES = ['读取原稿', '提取文字', '校验结构', '标注来源'] as const
 
-export function BeautifyPanel({ packs, loadingPacks, onStepChange, resumeProjectId }: { packs: StylePack[]; loadingPacks: boolean; onStepChange: (step: number) => void; resumeProjectId?: string }) {
+export function BeautifyPanel({ packs, loadingPacks, onStepChange, resumeProjectId, initialStylePackId }: { packs: StylePack[]; loadingPacks: boolean; onStepChange: (step: number) => void; resumeProjectId?: string; initialStylePackId?: string | null }) {
   const toast = useToast()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const imageMode = 'redesign' as const
@@ -85,7 +85,7 @@ export function BeautifyPanel({ packs, loadingPacks, onStepChange, resumeProject
   const [lightbox, setLightbox] = useState(false)
   /** 单页重生成的确认框（待确认的页号） */
   const [regenTarget, setRegenTarget] = useState<number | null>(null)
-  const [packId, setPackId] = useState('')
+  const [packId, setPackId] = useState(initialStylePackId || '')
   const [stylePage, setStylePage] = useState(1)
   const stylePageCount = Math.max(1, Math.ceil(packs.length / STYLES_PER_PAGE))
   const currentStylePage = Math.min(stylePage, stylePageCount)
@@ -95,8 +95,6 @@ export function BeautifyPanel({ packs, loadingPacks, onStepChange, resumeProject
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<BeautifyStatus | null>(null)
-  const [engine, setEngine] = useState<CodexEngineStatus | null>(null)
-  const [engineError, setEngineError] = useState<string | null>(null)
   /* ⑤ 结果页：本页历史版本（预览 + 恢复）与本次优化信息 */
   const [regenInfo, setRegenInfo] = useState<{ pageNo: number; instruction: string } | null>(null)
   const [versionsOpen, setVersionsOpen] = useState(false)
@@ -122,14 +120,9 @@ export function BeautifyPanel({ packs, loadingPacks, onStepChange, resumeProject
   })
 
   useEffect(() => {
-    let active = true
-    codexEngine().then((value) => { if (active) setEngine(value) })
-      .catch((e: unknown) => { if (active) setEngineError(errorDetail(e)) })
-    return () => { active = false }
-  }, [])
-  useEffect(() => {
+    if (initialStylePackId) { setPackId(initialStylePackId); return }
     if (!packId && packs.length) setPackId(packs[0].id)
-  }, [packs, packId])
+  }, [packs, packId, initialStylePackId])
   useEffect(() => { setStylePage(previous => Math.min(previous, stylePageCount)) }, [stylePageCount])
 
   /** 从「我的项目」进入：按后端记录的美化现场恢复到上一次执行到的步骤（不重跑生图、不新建项目） */
@@ -426,8 +419,6 @@ export function BeautifyPanel({ packs, loadingPacks, onStepChange, resumeProject
         <FlowSteps steps={BEAUTIFY_STEPS} current={step} locks={stepLocks} busy={busy} onJump={goStep}
           onLocked={(target, reason) => toast.info(`「${BEAUTIFY_STEP_LABELS[target - 1]}」暂时不能进入：${reason}`)} label="PPT美化步骤" />
       </header>
-      {step === 5 && engine && !engine.ok && <div className="panel-alt text-body-sm" role="alert">Codex 引擎不可用：{engine.reason}，将只能产出图片版</div>}
-      {step === 5 && engineError && <div className="error-box" role="alert">Codex 引擎探测失败：{engineError}</div>}
       {step === 1 && <>
         {!file ? <Dropzone head="拖入要美化的 PPTX / PDF" hint="选择文件后，点击「开始 PPT 美化」分析页面" formats={`PPTX · PDF · ${UPLOAD_SIZE_HINT}`} accept=".pptx,.pdf" onPick={(picked) => { if (picked[0]) chooseFile(picked[0]) }} /> : <div className="flex min-h-64 flex-col items-center justify-center gap-4 rounded-2xl border border-border bg-surface-band px-6 py-8 text-center">
           <span className="flex h-16 w-16 items-center justify-center rounded-2xl border border-border bg-surface text-primary"><IconFolder className="h-7 w-7" /></span>
