@@ -63,6 +63,15 @@ CREATE TABLE IF NOT EXISTS operation_submissions (
 CREATE TABLE IF NOT EXISTS operation_quotes (
  id TEXT PRIMARY KEY, project_id TEXT NOT NULL, fingerprint TEXT NOT NULL, body_json TEXT NOT NULL
 );
+-- 供应商面板侧用量快照（New API 计费接口只给「累计值」，靠快照差算增量；不是本机账本）
+CREATE TABLE IF NOT EXISTS provider_usage (
+  id TEXT PRIMARY KEY, provider_id TEXT NOT NULL, ts TEXT,
+  total_usage REAL DEFAULT 0,           -- 面板口径原始累计值（单位随 currency）
+  currency TEXT,                        -- USD | CNY | TOKENS
+  used_usd REAL, used_cny REAL,
+  raw_json TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_provider_usage_provider ON provider_usage(provider_id, ts);
 CREATE TABLE IF NOT EXISTS slide_versions (
  id TEXT PRIMARY KEY, slide_id TEXT NOT NULL, snapshot_json TEXT NOT NULL, job_id TEXT, created_at TEXT
 );

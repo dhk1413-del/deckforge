@@ -45,6 +45,9 @@ providers:
         unit_price_cny: null
     default_model: "gpt-image-2"
     default_size: "2K"
+    # 面板侧用量查询（New API 兼容）：用同一个 key 读 /v1/dashboard/billing/usage。
+    # 只报「累计值 + 快照增量」——该接口忽略日期区间，且是否按 key/账号统计由面板开关决定。
+    usage_api: "new_api"
     notes: "OpenAI 兼容：Bearer 鉴权、GET /v1/models、POST /v1/images/generations。可在设置页按 GuaiHub 控制台给出的 API Base URL 覆盖。"
 
   # ── 国内（直连，绕过代理）──────────────────────

@@ -85,6 +85,7 @@ def image_providers(with_keys: bool = False) -> List[Dict[str, Any]]:
                         api_style=p.get("api_style", ""), needs_proxy=bool(p.get("needs_proxy")),
                         default_model=model, default_size=size, models=p.get("models", []),
                         notes=p.get("notes", ""), key_set=bool(key), key_masked=mask(key),
+                        usage_api=p.get("usage_api", ""),
                         key=key if with_keys else "", unit_price_cny=_price_of(p, model, size)))
     return out
 
