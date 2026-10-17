@@ -284,7 +284,7 @@ export function OutlineEditor({
 
             <label className="flex flex-col gap-1">
               <span className="metric-label">本页原文 <span className="text-ink-muted">请核对本页内容，后续 AI 将基于此内容继续梳理</span></span>
-              <textarea className="input h-40 resize-y py-2" value={editing.points.join('\n')} placeholder="每行一条要点"
+              <textarea className="input h-52! resize-y py-2!" value={editing.points.join('\n')} placeholder="每行一条要点"
                         onChange={(event) => replacePage(editing.page_no, { points: event.target.value.split('\n') })} />
             </label>
 

@@ -39,7 +39,7 @@ function OptimizeDialog({ pageNo, onClose, onConfirm }: { pageNo: number; onClos
         <h3 className="m-0 text-h3">优化本页 <span className="num">P{pageNo}</span></h3>
         <label className="flex flex-col gap-1">
           <span className="metric-label">修改要求</span>
-          <textarea className="input h-32 resize-y py-2" autoFocus value={instruction} onChange={(e) => setInstruction(e.target.value)}
+          <textarea className="input h-32! resize-y py-2!" autoFocus value={instruction} onChange={(e) => setInstruction(e.target.value)}
             placeholder="输入你想让 AI 修改的方向，请尽可能全面详细描述，例如：标题更突出，配色变成深蓝，图表区域放大 1.2 倍…" />
         </label>
         <p className="m-0 text-body-sm text-ink-sub">

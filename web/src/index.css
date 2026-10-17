@@ -288,3 +288,7 @@
 .beautify-live-dot { display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; background: var(--color-primary); animation: deck-pulse 1.2s ease-in-out infinite; }
 @keyframes deck-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
 @media (prefers-reduced-motion: reduce) { .beautify-live-dot { animation: none; } }
+
+/* 文本域最小高度：.input 写死了 height:40px（单行），文本域至少要能舒服写几行。
+   这里**只设 min-height**，不写 height —— 否则特异性会压掉 h-32 / h-40 / h-52 这类工具类。 */
+textarea.input { min-height: 96px; }
