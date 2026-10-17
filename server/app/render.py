@@ -87,7 +87,7 @@ def _font(size: int) -> ImageFont.FreeTypeFont:
 
 NEGATIVE = ("不要水印、不要 logo、不要页码、不要二维码、不要署名、不要乱码；"
             "文字必须清晰可读、不重叠、不出画布、不被裁切；不得改写文字、不得用同音字近形字替换、不得凭空加字；"
-            "不要装饰性英文、不要 Lorem ipsum；所有元素留在画布内（含 2% 安全边距）。")
+            "不要装饰性英文、不要 Lorem ipsum；所有元素留在画布内且四周留足安全边距（≥ 画幅宽 7%），不要贴边或压边。")
 
 
 def assemble_prompt(style: Dict[str, Any], layout_key: str, content: Dict[str, Any], size: str = "2K") -> str:
@@ -117,6 +117,11 @@ def assemble_prompt(style: Dict[str, Any], layout_key: str, content: Dict[str, A
             colors.get("accent", colors.get("primary", "#1E78FA")),
             colors.get("accent-2", colors.get("tertiary", "#26ABFE"))),
         "- 标题层级由大到小 3~4 级；正文统一字号；数字可用等宽字形",
+        "",
+        "【版心与比例】（宁松勿挤，精致优先）",
+        "- 四周安全留白 ≥ 画幅宽的 7%（2K 画幅约 144px）；任何文字、图形、卡片都不得贴边或压边",
+        "- 标题字号约画幅高的 6%~8%，正文约 2.2%~2.8%，数字与正文同档；层级清晰、留白充分",
+        "- 元素尺寸克制、细节精致：细线、小图标、克制投影；不要超大字号、不要大色块铺满、不要元素拥挤",
         "",
         "【必须上屏的文字（逐字复制，不得改写、增删、翻译）】",
     ]
