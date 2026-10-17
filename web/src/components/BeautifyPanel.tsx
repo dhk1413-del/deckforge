@@ -420,6 +420,7 @@ export function BeautifyPanel({ packs, loadingPacks, onStepChange, resumeProject
           onLocked={(target, reason) => toast.info(`「${BEAUTIFY_STEP_LABELS[target - 1]}」暂时不能进入：${reason}`)} label="PPT美化步骤" />
       </header>
       {step === 1 && <>
+        <div className="gen-panel-drop">
         {!file ? <Dropzone head="拖入要美化的 PPTX / PDF" hint="选择文件后，点击「开始 PPT 美化」分析页面" formats={`PPTX · PDF · ${UPLOAD_SIZE_HINT}`} accept=".pptx,.pdf" onPick={(picked) => { if (picked[0]) chooseFile(picked[0]) }} /> : <div className="flex min-h-64 flex-col items-center justify-center gap-4 rounded-2xl border border-border bg-surface-band px-6 py-8 text-center">
           <span className="flex h-16 w-16 items-center justify-center rounded-2xl border border-border bg-surface text-primary"><IconFolder className="h-7 w-7" /></span>
           <h3 className="m-0 max-w-full break-words text-h3">{file.name}</h3>
@@ -430,7 +431,9 @@ export function BeautifyPanel({ packs, loadingPacks, onStepChange, resumeProject
           </div>
           <input ref={fileInputRef} type="file" accept=".pptx,.pdf" className="hidden" disabled={busy} onChange={(event) => { const next = event.target.files?.[0]; if (next) chooseFile(next); event.target.value = '' }} />
         </div>}
-        <div className="flex justify-end">
+        </div>
+        <div className="gen-panel-foot">
+          <span className="text-body-sm text-ink-sub">{file ? '已选择文件，点右侧开始分析页面' : '支持 PPTX · PDF，单文件最大 60MB'}</span>
           <button type="button" className="btn btn-primary rounded-full px-6" disabled={!file || busy} onClick={() => void recognize()}>{busy ? '正在分析页面…' : '开始 PPT 美化'}</button>
         </div>
         {busy && <p role="status" className="m-0 text-body-sm text-ink-sub">正在上传文件并分析页面，请稍候…</p>}

@@ -156,7 +156,7 @@ export function HomePage() {
 
           {/* 功能框：固定高度，三个模式互相切换时尺寸不跳动；内容更高时在框内滚动 */}
           <div className="mode-panel min-w-0">
-            {mode === 'topic' && <TopicPanel pickedPack={pickedPack} />}
+            {mode === 'topic' && <TopicPanel pickedPack={pickedPack} pickedName={packOptions.find((p) => p.id === pickedPack)?.name} />}
             {mode === 'editable' && <EditablePanel />}
             {mode === 'reskin' && <BeautifyPanel packs={packOptions} loadingPacks={packs.loading} onStepChange={setBeautifyStep} initialStylePackId={pickedPack} />}
           </div>
@@ -208,7 +208,7 @@ function PanelHead({ lead }: { lead: ReactNode }) {
 
 const DOC_ACCEPT = '.md,.markdown,.txt,.docx,.pdf,.pptx'
 
-function TopicPanel({ pickedPack }: { pickedPack: string | null }) {
+function TopicPanel({ pickedPack, pickedName }: { pickedPack: string | null; pickedName?: string }) {
   const [file, setFile] = useState<File | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -222,29 +222,44 @@ function TopicPanel({ pickedPack }: { pickedPack: string | null }) {
   }
 
   return (
-    <div className="flex flex-col gap-3">
-      <PanelHead
-        lead={
-          <>
-            <span className="font-semibold text-ink">适合已有完整文档</span>
-            ，需要 AI 规划结构并生成整套 PPT。
-            <span className="text-ink-muted">（页数与风格在下一步确定）</span>
-          </>
-        }
-      />
+    <div className="gen-panel">
+      <div className="gen-panel-head">
+        <PanelHead
+          lead={
+            <>
+              <span className="font-semibold text-ink">适合已有完整文档</span>
+              ，需要 AI 规划结构并生成整套 PPT。
+              <span className="text-ink-muted">（页数与风格在下一步确定）</span>
+            </>
+          }
+        />
+        <button
+          type="button"
+          className="gen-panel-style btn btn-secondary h-8! text-body-sm"
+          title="在下方「设计师原创设计风格」里挑选模板"
+          onClick={() => document.querySelector('#style-gallery')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+        >
+          ✦ 设计风格 · {pickedName ? `已选 ${pickedName}` : '可选'}
+        </button>
+      </div>
 
-      <Dropzone
-        head="拖入文档，开始生成 PPT"
-        hint="点击此处选择文件"
-        formats={`TXT · MD · DOCX · PDF · PPTX · ${UPLOAD_SIZE_HINT}`}
-        accept={DOC_ACCEPT}
-        onPick={(picked) => choose(picked[0] ?? null)}
-      />
+      <div className="gen-panel-drop">
+        <Dropzone
+          head="拖入文档，开始生成 PPT"
+          hint="点击此处选择文件"
+          formats={`TXT · MD · DOCX · PDF · PPTX · ${UPLOAD_SIZE_HINT}`}
+          accept={DOC_ACCEPT}
+          onPick={(picked) => choose(picked[0] ?? null)}
+        />
+      </div>
 
       {error && <div className="error-box text-body-sm">{error}</div>}
       {file && <PickedFile file={file} onClear={() => setFile(null)} />}
 
-      <div className="flex flex-wrap items-center justify-end gap-2">
+      <div className="gen-panel-foot">
+        <span className="text-body-sm text-ink-sub">
+          {file ? '已选择 1 个文件，点右侧开始' : '支持 TXT · MD · DOCX · PDF · PPTX，单文件最大 60MB'}
+        </span>
         <button
           type="button"
           className="btn btn-primary"
@@ -260,7 +275,6 @@ function TopicPanel({ pickedPack }: { pickedPack: string | null }) {
           开始生成大纲
         </button>
       </div>
-
     </div>
   )
 }
@@ -295,27 +309,31 @@ function EditablePanel() {
   }
 
   return (
-    <div className="flex flex-col gap-3">
-      <PanelHead
-        lead={
-          <>
-            <span className="font-semibold text-ink">上传 PDF / 图片 / 已有 pptx</span>
-            ：先按原页渲染出图片版，再由本机 agent 逐页精细重建为<b>可编辑</b> PPT。
-          </>
-        }
-      />
+    <div className="gen-panel">
+      <div className="gen-panel-head">
+        <PanelHead
+          lead={
+            <>
+              <span className="font-semibold text-ink">上传 PDF / 图片 / 已有 pptx</span>
+              ：先按原页渲染出图片版，再由本机 agent 逐页精细重建为<b>可编辑</b> PPT。
+            </>
+          }
+        />
+      </div>
 
-      <Dropzone
-        multiple
-        head="拖入 PDF / 图片 / pptx（可多选，按顺序成册）"
-        hint="点击此处选择文件"
-        formats="PDF · PNG · JPG · PPTX · 多张图片按顺序拼成一册"
-        accept=".pdf,.png,.jpg,.jpeg,.webp,.pptx"
-        onPick={(picked) => {
-          setError(null)
-          setFiles(picked)
-        }}
-      />
+      <div className="gen-panel-drop">
+        <Dropzone
+          multiple
+          head="拖入 PDF / 图片 / pptx（可多选，按顺序成册）"
+          hint="点击此处选择文件"
+          formats="PDF · PNG · JPG · PPTX · 多张图片按顺序拼成一册"
+          accept=".pdf,.png,.jpg,.jpeg,.webp,.pptx"
+          onPick={(picked) => {
+            setError(null)
+            setFiles(picked)
+          }}
+        />
+      </div>
 
       {files.length > 0 && (
         <div className="panel-alt flex flex-wrap items-center gap-2">
@@ -334,17 +352,13 @@ function EditablePanel() {
 
       {error && <div className="error-box text-body-sm">{error}</div>}
 
-      <div className="flex flex-wrap items-center justify-between gap-2">
+      <div className="gen-panel-foot">
         <span className="text-body-sm text-ink-sub">
           上传后自动开始逐页重建；每页约 13 分钟，可随时停止，已完成页会保留。
         </span>
         <button type="button" className="btn btn-primary" disabled={!files.length || busy} onClick={start}>
           {busy ? '正在导入…' : '转可编辑 PPT'}
         </button>
-      </div>
-
-      <div className="panel-alt text-body-sm text-ink-sub">
-        重建走第三方 skill（本机 agent 逐页重建 + 自带 validation 校验），产物只包含所转页面。
       </div>
     </div>
   )
