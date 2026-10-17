@@ -5,7 +5,6 @@ import json
 import os
 from pathlib import Path
 import shutil
-import sys
 import tempfile
 import threading
 import time
@@ -15,7 +14,7 @@ from PIL import Image
 from pptx import Presentation
 from pptx.enum.shapes import MSO_SHAPE_TYPE
 
-from . import codex_engine, config, db, providers, source_pages
+from . import config, db, providers, source_pages
 
 CONTENT_LOCK = threading.RLock()
 
@@ -481,69 +480,6 @@ def beautify_page(pid, page_no, tokens, mode='img2img', size='2K', text=None,
         result['warning'] = '；'.join(filter(None, (warning, result.get('warning', ''))))
     result.pop('image_bytes', None)
     return dict(result, path=str(target))
-
-
-# Fixed reconstruction contract, read literally from §4.1.
-REBUILD_PROMPT_TEMPLATE = '''# 任务：把每页图片重建为「PowerPoint 原生可编辑页面」，输出 out.pptx
-
-工作目录里有（每页一组，页号 N 两位数）：
-- pages/pNN.png —— 第 N 页的【视觉参考图】（已美化，含版式/配色/装饰）
-- pages/pNN.txt —— 第 N 页的【文字真源】（来自原稿，**必须逐字采用**）
-- style.json     —— 配色令牌
-
-硬性要求（违反任何一条都算失败）：
-1. 用 python-pptx 生成 out.pptx。解释器用当前服务进程的解释器（已装 python-pptx）：
-   {python_executable}
-2. 幻灯片尺寸 13.333 × 7.5 英寸（16:9），**每页一张幻灯片**，顺序与页号一致。
-3. 页面上**所有文字**必须是**真正的文本框**（slide.shapes.add_textbox），内容**逐字取自 pages/pNN.txt**：
-   不改写、不翻译、不精简、不漏字、不编造原文没有的文字。字号/位置/对齐参照 pNN.png。
-4. 版式、配色、装饰（背景色块、色带、圆角卡片、线条、图标位）用**原生形状**还原，颜色取自 style.json。
-5. **禁止把整页 pNN.png 铺满作为底图**（那是「图片版」，不是「可编辑版」）。
-   局部插画/照片允许裁切后作为图片插入，但不得用整页图代替排版。
-6. 只写工作目录内的文件，不做 git 提交，不修改工作目录以外的文件。
-7. 完成后，最后一条消息输出一行：DONE out.pptx pages=<页数>'''
-
-
-def rebuild_prompt() -> str:
-    return REBUILD_PROMPT_TEMPLATE.format(python_executable=sys.executable)
-
-
-def convert_with_codex(pid, items, out_path, tokens, style_name):
-    work = directory(pid) / 'work'
-    shutil.rmtree(work, ignore_errors=True)
-    (work / 'pages').mkdir(parents=True)
-    Path(out_path).unlink(missing_ok=True)
-    for item in sorted(items, key=lambda x: x['page_no']):
-        name = f"p{item['page_no']:02d}"
-        shutil.copyfile(item['image'], work / 'pages' / (name + '.png'))
-        text = '\n'.join(item['text'].get('texts') or [])
-        (work / 'pages' / (name + '.txt')).write_text(text, encoding='utf-8')
-        shutil.copyfile(work / 'pages' / (name + '.png'), work / (name + '.png'))
-        (work / (name + '.txt')).write_text(text, encoding='utf-8')
-    (work / 'style.json').write_text(json.dumps(tokens, ensure_ascii=False), encoding='utf-8')
-    result = codex_engine.run(rebuild_prompt(), str(work))
-    output = work / 'out.pptx'
-    try:
-        if not result['ok']:
-            raise ValueError(result.get('reason') or result.get('stderr') or 'Codex 执行失败')
-        prs = Presentation(output)
-        if len(prs.slides) != len(items) or not items:
-            raise ValueError('Codex 产物页数不匹配')
-        # Enforce literal text equality, including duplicate strings, before publishing.
-        for slide, item in zip(prs.slides, sorted(items, key=lambda x: x['page_no'])):
-            actual = [s.text for s in slide.shapes if s.has_text_frame and s.text.strip()]
-            from collections import Counter
-            if Counter('\n'.join(actual).splitlines()) != Counter('\n'.join(item['text'].get('texts') or []).splitlines()):
-                raise ValueError(f"第 {item['page_no']} 页文字与真源不一致")
-            for shape in slide.shapes:
-                if shape.shape_type == 13 and shape.width >= prs.slide_width * .95 and shape.height >= prs.slide_height * .95:
-                    raise ValueError('Codex 产物使用了整页图片')
-        Path(out_path).parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(output, out_path)
-        return dict(ok=True, path=str(out_path), seconds=result['seconds'], message='', warnings=[])
-    except Exception as exc:
-        output.unlink(missing_ok=True)
-        return dict(ok=False, path='', seconds=result.get('seconds', 0), message=str(exc), warnings=[str(exc)])
 
 
 def validate_page_nos(value, count, provided=False):

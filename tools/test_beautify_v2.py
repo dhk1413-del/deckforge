@@ -12,7 +12,7 @@ from PIL import Image
 from pptx import Presentation
 from pptx.util import Inches
 from starlette.routing import Mount
-from server.app import beautify, codex_engine, config, pipeline
+from server.app import beautify, editppt_engine, config, pipeline
 
 
 def main():
@@ -23,12 +23,12 @@ def main():
         from server.app.main import app
         root_mounts = [i for i, route in enumerate(app.routes)
                        if isinstance(route, Mount) and route.path == '/']
-        for path in ('/api/codex-engine', '/api/projects/{pid}/beautify',
+        for path in ('/api/projects/{pid}/beautify',
                      '/api/projects/{pid}/beautify/origin', '/api/projects/{pid}/beautify/preview', '/api/projects/{pid}/beautify/continue'):
             indices = [i for i, route in enumerate(app.routes) if route.path == path]
             assert indices, f'缺少 API 路由：{path}'
             assert all(i < mount for i in indices for mount in root_mounts), f'API 被静态挂载遮挡：{path}'
-        print('PASS 7 路由注册顺序：Codex/美化 API 均位于根静态挂载之前')
+        print('PASS 7 路由注册顺序：美化 API 均位于根静态挂载之前')
 
         aggregate = [dict(provider='priced', cny=1.5, n=2, failed=0),
                      dict(provider='unpriced', cny=0, n=3, failed=2)]
@@ -120,30 +120,11 @@ def main():
         assert beautify.page_text_source(str(blank), 1)['source'] == 'none'
         print('PASS 2 page_text_source：PPTX 表格/PDF 文字完整，纯图片不编造')
 
-        out = root / 'editable.pptx'
-        out.write_bytes(b'stale')
-        items = [dict(page_no=1, image=image['pages'][0]['path'], text=text)]
-        with patch.dict(os.environ, CODEX_BIN='/nonexistent'):
-            result = beautify.convert_with_codex('img', items, str(out), {}, '')
-        assert result['ok'] is False and result['warnings'] and not out.exists()
-        assert not (beautify.directory('img') / 'work' / 'out.pptx').exists()
-        print('PASS 3 Codex 不可用：明确失败，不产出或保留伪可编辑版')
-        import subprocess
-        with patch.object(codex_engine, 'binary', return_value='/mock/codex'), \
-                patch.object(codex_engine, 'proxy_url', return_value='http://127.0.0.1:7897'), \
-                patch.object(codex_engine.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, 'DONE', '')) as cli:
-            result = codex_engine.run('-prompt', str(root / 'cli'), images=[str(png)], model='test')
-            args, kwargs = cli.call_args
-            assert result['ok'] and args[0][-2:] == ['--', '-prompt']
-            assert kwargs['env']['HTTPS_PROXY'] == 'http://127.0.0.1:7897'
-            cli.side_effect = subprocess.TimeoutExpired('codex', 1)
-            assert codex_engine.run('test', str(root / 'cli'))['reason'] == 'timeout'
-        with patch.object(codex_engine.db, 'setting_get', return_value='http://127.0.0.1:1111'), \
-                patch.object(config, 'http_proxy_url', return_value='http://127.0.0.1:2222'), \
-                patch('socket.create_connection') as tcp:
-            tcp.side_effect = [OSError('unreachable'), tcp.return_value]
-            assert codex_engine.proxy_url() == 'http://127.0.0.1:2222'
-            assert tcp.call_args.kwargs['timeout'] == 1
+        items = [dict(page_no=1, image_path=image['pages'][0]['path'], texts=text['texts'])]
+        with patch.object(editppt_engine, 'available', return_value=dict(ok=False, reason='未安装 editppt CLI')):
+            result = editppt_engine.convert_items('img', items)
+        assert result['ok'] is False and '未安装' in result['error'], result
+        print('PASS 3 精细重建引擎不可用：明确失败，不产出或保留伪可编辑版')
 
 
         state = dict(phase='preview', pages=[], warnings=[], confirmed=False)
@@ -216,22 +197,20 @@ def main():
             # 生成图片时**不再自动**转可编辑：没有 codex 阶段、没有 editable 产物、作业照样算成功
             assert convert.call_count == 0
             assert 'editable' not in full['exports']
-            assert full['codex'].get('ok') is False and '尚未转换' in full['codex'].get('message', '')
+            assert not (full.get('editable_engine') or {}).get('ok')
             assert 'codex' not in [event.get('stage') for event in pipeline.job_queue(jid)._queue]
             assert pipeline.JOBS[jid]['status'] == 'done'
             assert pipeline.JOBS[jid]['done'] == pipeline.JOBS[jid]['total'] == 1
             assert edit.call_count == calls + 1
             assert len(Presentation(full['exports']['image']).slides) == 4
             assert all(row['kind'] != 'beautify_editable' for row in records if 'kind' in row)
-            # 按需转可编辑：只有显式调用才跑 Codex；失败时如实报错且不伪造可编辑产物
+            # 按需转可编辑：只有显式调用才跑精细重建；失败时如实报错且不伪造可编辑产物
             jid = await pipeline.run_beautify_editable('job', 'style')
             for _ in range(20000):
                 if pipeline.JOBS[jid]['status'] != 'running':
                     break
                 await asyncio.sleep(0)
             assert convert.call_count == 1 and len(convert.call_args.args[1]) == 4
-            assert Path(convert.call_args.args[2]).name == 'full.pptx'
-            assert 'codex' in [event.get('stage') for event in pipeline.job_queue(jid)._queue]
             assert pipeline.JOBS[jid]['status'] == 'failed'
             ondemand = beautify.read_state('job')
             assert 'editable' not in ondemand['exports']
@@ -242,10 +221,11 @@ def main():
                 patch.object(pipeline.db, 'update'), patch.object(pipeline.db, 'x'), \
                 patch.object(pipeline.db, 'log_usage'), \
                 patch.object(pipeline.stylepacks, 'get_style_pack', return_value=dict(name='离线', tokens={})), \
+                patch.object(editppt_engine, 'available', return_value=dict(ok=True, reason='可用')), \
                 patch.object(beautify.providers, 'pick_image_provider', return_value=None), \
                 patch.object(beautify.providers, 'edit_image', wraps=beautify.providers.edit_image) as edit, \
-                patch.object(beautify, 'convert_with_codex', wraps=beautify.convert_with_codex) as convert, \
-                patch.dict(os.environ, CODEX_BIN='/nonexistent'):
+                patch.object(editppt_engine, 'convert_items',
+                             side_effect=lambda *a, **k: dict(ok=False, error='精细重建引擎不可用', run_dir='', warnings=[])) as convert:
             asyncio.run(phases())
         # 单页重生成：非破坏性（其它页文件不重写、图片版重装配、记账落页号）
         async def single_page():
@@ -301,13 +281,14 @@ def main():
             asyncio.run(single_page())
         print('PASS 单页重生成：只重写该页、其它页与导出不动、图片版重装配、按页记账、未选页与无现场拒绝')
         # A successful full reconstruction is injected, never sent to a model.
-        def successful_convert(pid, items, out_path, tokens, style_name):
+        def successful_convert(pid, items, on_event=None, cancel_key='', validate_text=False, **kwargs):
             deck = Presentation()
             for item in items:
                 slide = deck.slides.add_slide(deck.slide_layouts[6])
-                slide.shapes.add_textbox(Inches(1), Inches(1), Inches(8), Inches(2)).text = '\n'.join(item['text']['texts'])
+                slide.shapes.add_textbox(Inches(1), Inches(1), Inches(8), Inches(2)).text = '\n'.join(item.get('texts') or [])
+            out_path = Path(tmp) / 'editppt-success.pptx'
             deck.save(out_path)
-            return dict(ok=True, path=out_path, seconds=0, message='', warnings=[])
+            return dict(ok=True, deck=str(out_path), run_dir='', pages=[i['page_no'] for i in items], warnings=[], failures=[])
         async def redesign_phases():
             for phase in ('preview', 'full'):
                 jid = await pipeline.run_beautify('job', 'style', phase, mode='redesign')
@@ -341,9 +322,10 @@ def main():
                 patch.object(pipeline.db, 'insert'), patch.object(pipeline.db, 'update'), \
                 patch.object(pipeline.db, 'x'), patch.object(pipeline.db, 'log_usage') as usage, \
                 patch.object(pipeline.stylepacks, 'get_style_pack', return_value=dict(name='离线', tokens={})), \
+                patch.object(editppt_engine, 'available', return_value=dict(ok=True, reason='可用')), \
                 patch.object(beautify.providers, 'pick_image_provider', return_value=None), \
                 patch.object(beautify.providers, 'generate_image', wraps=beautify.providers.generate_image) as generate, \
-                patch.object(beautify, 'convert_with_codex', side_effect=successful_convert) as convert:
+                patch.object(editppt_engine, 'convert_items', side_effect=successful_convert) as convert:
             asyncio.run(redesign_phases())
             assert usage.call_count == 4 and all(call.args[6] == 0 for call in usage.call_args_list)
         async def wait_terminal(jid):
@@ -398,9 +380,9 @@ def main():
                 patch.object(pipeline.stylepacks, 'get_style_pack', return_value=dict(name='离线', tokens={})), \
                 patch.object(beautify.providers, 'pick_image_provider', return_value=None), \
                 patch.object(beautify.providers, 'edit_image', wraps=beautify.providers.edit_image) as edit, \
-                patch.object(beautify, 'convert_with_codex', side_effect=successful_convert) as convert:
+                patch.object(editppt_engine, 'convert_items', side_effect=successful_convert) as convert:
             asyncio.run(cancellation_phases())
-        print('PASS 取消/续跑：render 后取消不调用 Codex，保留 pages/preview/图片版，零图片亦可续跑')
+        print('PASS 取消/续跑：render 后取消不调用精细重建，保留 pages/preview/图片版，零图片亦可续跑')
 
         async def generation_cancel():
             rows = [dict(id=f's{n}', page_no=n, title=f'原文{n}', status='pending') for n in range(1, 5)]
@@ -498,7 +480,7 @@ def main():
                 patch.object(pipeline.stylepacks, 'get_style_pack', return_value=dict(name='offline', tokens={})), \
                 patch.object(beautify.providers, 'pick_image_provider', return_value=None), \
                 patch.object(beautify, 'beautify_page', wraps=beautify.beautify_page) as edit, \
-                patch.object(beautify, 'convert_with_codex', side_effect=successful_convert):
+                patch.object(editppt_engine, 'convert_items', side_effect=successful_convert):
             asyncio.run(selected_pages())
         plan = beautify.prepare_content('content-check', str(pdf), [4, 2], [2])
         assert plan['page_nos'] == [2, 4]
@@ -585,7 +567,7 @@ def main():
         print('PASS page_nos：非法列表 400、非连续选页按原顺序预览、续跑仅生成缺页')
         print('PASS 取消端点：不存在 404、所有终态 400、运行中 cancelling、SSE 终态回放')
         print('PASS redesign 编排/端点：mode 持久化与透传、非法值 400、零成本记账、全量双导出')
-        print('PASS 编排补充：预览不调用 Codex/不产可编辑版，full 重建全部页，预览页不重跑，记账页数不变')
+        print('PASS 编排补充：预览不调用精细重建/不产可编辑版，full 重建全部页，预览页不重跑，记账页数不变')
         # —— 勾「保留原图」的页面：原 PPT 里的图片必须原样保留（坐标级，不依赖模型自觉）——
         picdir = Path(tmp) / 'pics'
         picdir.mkdir()

@@ -64,6 +64,7 @@ def main():
         st = ee.available()
         check("skill 目录无 SKILL.md → 指出来", st["ok"] is False and "SKILL.md" in st["reason"], st["reason"])
         open(os.path.join(skill, "SKILL.md"), "w").write("# x")
+        fk.set(ee, "agent_kind", lambda: "hermes")     # 本用例验 Hermes 兜底执行器的缺件提示
         fk.set(ee, "hermes_path", lambda: os.path.join(tmp, "no-hermes"))
         # 本机若装了 hermes，available() 会经 shutil.which 在 PATH 里兜底找到它；
         # 该断言要验的是「三件套缺 agent 时说清缺什么」，故只在 ee 模块内隔离 PATH 查找，不动全局。
@@ -146,6 +147,11 @@ def main():
                 out_root = args[args.index("--out-root") + 1]
                 os.makedirs(os.path.join(out_root, "run1", "pages", "page_001"), exist_ok=True)
                 return dict(ok=True, code=0, out="", err="")
+            if len(args) >= 2 and args[0] == "run" and args[1] == "status":
+                return dict(ok=True, code=0, out=json.dumps({"pages": {}, "active_dispatches": []}), err="")
+            if len(args) >= 2 and args[0] == "run" and args[1] == "next":
+                return dict(ok=True, code=0, out=json.dumps(
+                    {"stage": "dispatch_pages", "suggested_pages": ["page_001"]}), err="")
             return dict(ok=True, code=0, out="", err="")
 
         fk.set(ee, "_run", fake_run)
@@ -227,7 +233,14 @@ def main():
 
         fk.set(ee, "_run_page_worker", fake_worker)
         fk.set(ee, "_prepare_page", lambda *a, **k: None)
-        fk.set(ee, "_run", lambda args, cwd=None, timeout=0: dict(ok=True, code=0, out="", err=""))
+        def fake_run_recorded(args, cwd=None, timeout=0):
+            if len(args) >= 2 and args[0] == "run" and args[1] == "status":
+                return dict(ok=True, code=0, out=json.dumps(
+                    {"pages": {"recorded": ["page_001"]}, "active_dispatches": []}), err="")
+            if len(args) >= 2 and args[0] == "run" and args[1] == "next":
+                return dict(ok=True, code=0, out=json.dumps({"stage": "finalize"}), err="")
+            return dict(ok=True, code=0, out="", err="")
+        fk.set(ee, "_run", fake_run_recorded)
         fk.set(ee.db, "q", lambda *a, **k: [dict(page_no=1, image_path=img, width=100, height=100,
                                                  native_scene_json="{}")])
         fk.set(ee, "_publish_deck", lambda deck: deck)
@@ -242,7 +255,35 @@ def main():
               json.dumps(res2, ensure_ascii=False)[:140])
         check("跳过页后被算作已完成", res2.get("pages") == [1])
 
-        print("[10] 取消后不再往下跑（保留现场，不当失败）")
+        print("[10] 状态机与并发上限：run next 解析、并发数收敛")
+        fk.set(ee, "_setting", lambda key, default="": "4")
+        check("max_concurrent_pages 读设置", ee.max_concurrent_pages() == 4, str(ee.max_concurrent_pages()))
+        fk.set(ee, "_setting", lambda key, default="": "99")
+        check("并发上限收敛到 8", ee.max_concurrent_pages() == 8, str(ee.max_concurrent_pages()))
+        fk.set(ee, "_setting", lambda key, default="": "bad")
+        check("非法并发值回落默认 2", ee.max_concurrent_pages() == 2, str(ee.max_concurrent_pages()))
+
+        fk.set(ee, "_run", lambda args, cwd=None, timeout=0: dict(
+            ok=True, code=0, out=json.dumps({"stage": "finalize"}), err=""))
+        check("_next_json 解析 run next 输出", ee._next_json(tmp).get("stage") == "finalize")
+        fk.set(ee, "_run", lambda args, cwd=None, timeout=0: dict(ok=True, code=0, out="not-json", err=""))
+        check("run next 输出坏 JSON → stage=error 且带原因",
+              ee._next_json(tmp).get("stage") == "error" and ee._next_json(tmp).get("reason"))
+
+        print("[11] 收尾补全：page_result.json 缺失但其它产物齐全时补路径清单")
+        pr = os.path.join(tmp, "page_result_case")
+        os.makedirs(pr, exist_ok=True)
+        for name in ("manifest.json", "imagegen-jobs.json", "page.pptx", "preview.png",
+                     "split_assets_contact.png", "validation.json"):
+            open(os.path.join(pr, name), "wb").write(b"x")
+        check("缺 page_result → 自动补写", ee._ensure_page_result(pr) and os.path.isfile(os.path.join(pr, "page_result.json")))
+        payload = json.load(open(os.path.join(pr, "page_result.json"), encoding="utf-8"))
+        check("补写内容只是路径清单", payload.get("page_pptx") == "page.pptx" and payload.get("validation") == "validation.json")
+        os.remove(os.path.join(pr, "preview.png"))
+        os.remove(os.path.join(pr, "page_result.json"))
+        check("其它产物缺失 → 不补、不伪造", ee._ensure_page_result(pr) is False)
+
+        print("[12] 取消后不再往下跑（保留现场，不当失败）")
         fk.set(ee, "_run_page_worker", lambda *a, **k: dict(ok=False, cancelled=True, tail="已停止"))
         run3 = os.path.join(tmp, "editppt", "p_res3-20260921-000000")
         os.makedirs(os.path.join(run3, "pages", "page_001"), exist_ok=True)

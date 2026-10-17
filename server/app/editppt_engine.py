@@ -3,16 +3,18 @@
 「图片转可编辑」**只有这一条路**（2026-09-21 起）：内置引擎（`pipeline._editable_worker`
 的 vision_absolute 本地渲染）已按要求下线，不再回退。
   · 本模块：分钟级/页 —— 驱动第三方 CLI 的状态机
-    （prepare → 逐页 dispatch → page worker（headless Hermes）→ record → finalize），
+    （prepare → 逐页/并发 dispatch → page worker（Harness headless，默认）→ record → finalize），
     产物自带 validation.json（zip/关系/必需文字/资产来源全查）
 
 实测对照（同一页，详见 skill §9.5）：文本框 14→45、文字覆盖 80%→100%、位置中位偏差 0.024→0.010。
 
 设计要点：
-  1. 平台只做**编排**，页面重建一律交给 headless Hermes（其契约要求"父代理不得写页面产物"）
-  2. 内容真源用我们自己的视觉识别结果写成 `hermes_text_hints.json`（它文档里的 PaddleOCR 提示位）
-     —— 文字不得改写，几何/字号按它的墨迹测量归一
-  3. 全程只读外部输入，失败如实上报（不伪造成功），失败页保留 run 目录供排查
+  1. 平台只做**编排**，页面重建一律交给 headless agent（Harness 默认，Hermes 可选；
+     其契约要求"父代理不得写页面产物"）
+  2. 内容真源：有真源（slides/美化原稿）就写标准 `text_hints.json` 的 text 字段；
+     没有真源时依次尝试 skill 的 PaddleOCR hints、本机 RapidOCR（离线），失败如实报错
+  3. 用 skill 的 `run next --json` 驱动状态机，页面允许多个 worker 并发（默认 2，可配）
+  4. 全程只读外部输入，失败如实上报（不伪造成功），失败页保留 run 目录供排查
 """
 from __future__ import annotations
 
@@ -21,8 +23,10 @@ import os
 import re
 import shutil
 import subprocess
+import threading
 import time
 import traceback
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Callable, Dict, List, Optional
 
 from . import config, db, providers
@@ -30,11 +34,20 @@ from . import config, db, providers
 DEFAULT_CLI = os.path.expanduser("~/.editppt-venv/bin/editppt")
 DEFAULT_SKILL_DIR = os.path.expanduser(
     "~/Documents/skills-repos/image-to-editable-ppt-skill/skills/image-to-editable-ppt")
+# Harness（DeepSeek Harness）用户级技能目录：headless agent 从这里加载 skill。
+DEFAULT_AGENTS_SKILL_DIR = os.path.expanduser("~/.agents/skills/image-to-editable-ppt")
 HERMES_CANDIDATES = [
     os.path.expanduser("~/Library/Application Support/cn.org.hermesagent.desktop/runtime/desktop-bin/hermes"),
     "/usr/local/bin/hermes", "/opt/homebrew/bin/hermes",
 ]
-PAGE_WORKER_TIMEOUT = 1200     # 单页重建上限 20 分钟（实测约 5–13 分钟）
+# 默认用 Harness 的 headless profile 执行 page worker（2026-10-17 起），Hermes 保留为可选。
+DEFAULT_AGENT = "harness"
+HARNESS_CANDIDATES = [
+    os.path.expanduser("~/.npm-global/bin/dsh"),
+    "/opt/homebrew/bin/dsh", "/usr/local/bin/dsh",
+]
+PAGE_WORKER_TIMEOUT = 1200
+DEFAULT_MAX_CONCURRENT_PAGES = 2     # NAS 2 核 1.9G：默认 2 路；可用设置覆盖     # 单页重建上限 20 分钟（实测约 5–13 分钟）
 SETUP_TIMEOUT = 180
 
 # 取消令牌：key = 项目 id。用户在界面上点「停止」后，正在跑的 page worker 会被终止，
@@ -72,6 +85,72 @@ def hermes_path() -> str:
     return "hermes"
 
 
+def _setting(key: str, default: str = "") -> str:
+    """settings 读取容错：测试/库未初始化时不让编排直接崩。"""
+    try:
+        return db.setting_get(key) or default
+    except Exception:                                          # noqa: BLE001
+        return default
+
+
+def agent_kind() -> str:
+    """page worker 由谁执行：`harness`（DeepSeek Harness headless，默认）或 `hermes`。"""
+    value = (_setting("editppt.agent") or os.environ.get("EDITPPT_AGENT") or DEFAULT_AGENT).strip().lower()
+    return value if value in ("harness", "hermes") else DEFAULT_AGENT
+
+
+def harness_path() -> str:
+    configured = db.setting_get("editppt.harness")
+    if configured:
+        return configured
+    found = shutil.which("dsh")
+    if found:
+        return found
+    for cand in HARNESS_CANDIDATES:
+        if os.path.exists(cand):
+            return cand
+    return "dsh"
+
+
+def harness_profile() -> str:
+    return _setting("editppt.harness_profile") or "headless"
+
+
+def agents_skill_dir() -> str:
+    """Harness 从用户级技能目录加载 skill；可用设置覆盖（换机器/换安装位置）。"""
+    return _setting("editppt.agents_skill_dir") or DEFAULT_AGENTS_SKILL_DIR
+
+
+def page_worker_timeout() -> int:
+    try:
+        return max(120, int(_setting("editppt.page_timeout") or PAGE_WORKER_TIMEOUT))
+    except (TypeError, ValueError):
+        return PAGE_WORKER_TIMEOUT
+
+
+def max_concurrent_pages() -> int:
+    """并发 page worker 数（skill 的 page_jobs.json.max_concurrent_pages 默认 6，这里按机器保守收敛）。"""
+    try:
+        value = int(_setting("editppt.max_concurrent_pages") or DEFAULT_MAX_CONCURRENT_PAGES)
+    except (TypeError, ValueError):
+        value = DEFAULT_MAX_CONCURRENT_PAGES
+    return max(1, min(8, value))
+
+
+def ocr_mode() -> str:
+    """无文字真源时的 OCR 兜底：auto（默认，RapidOCR）| off | rapidocr。"""
+    value = (_setting("editppt.ocr") or os.environ.get("EDITPPT_OCR") or "auto").strip().lower()
+    return value if value in ("auto", "off", "rapidocr") else "auto"
+
+
+def ocr_python() -> str:
+    """OCR 适配器跑在 editppt 的 venv 里（那边有 numpy/PIL，且可装 RapidOCR）。"""
+    return os.path.join(os.path.dirname(cli_path()), "python3")
+
+
+STATE_LOCK = threading.Lock()       # page_jobs.json 的读改写必须串行
+
+
 def _env() -> Dict[str, str]:
     env = dict(os.environ)
     env["PATH"] = os.path.dirname(cli_path()) + os.pathsep + env.get("PATH", "")
@@ -82,17 +161,30 @@ def _env() -> Dict[str, str]:
 def available() -> Dict[str, Any]:
     """引擎是否可用（不联网、不跑模型，只看本机装没装）。"""
     cli, skill = cli_path(), skill_dir()
-    hermes = hermes_path()
-    info: Dict[str, Any] = dict(engine="editppt", cli=cli, skill_dir=skill, hermes=hermes)
+    agent = agent_kind()
+    info: Dict[str, Any] = dict(engine="editppt", cli=cli, skill_dir=skill, agent=agent)
     if not os.path.exists(cli):
         return dict(info, ok=False, reason="未安装 editppt CLI（%s）；安装方式见 skill §9.5" % cli)
     if not os.path.isdir(skill):
         return dict(info, ok=False, reason="未找到 skill 目录（%s）" % skill)
     if not os.path.exists(os.path.join(skill, "SKILL.md")):
         return dict(info, ok=False, reason="skill 目录缺少 SKILL.md（%s）" % skill)
+    if agent == "harness":
+        harness = harness_path()
+        harness_ok = bool(os.path.exists(harness) or shutil.which(harness))
+        info.update(harness=harness, harness_profile=harness_profile(), agents_skill_dir=agents_skill_dir())
+        if not harness_ok:
+            return dict(info, ok=False, reason="未找到 DeepSeek Harness CLI（dsh，无法派 page worker）：%s" % harness)
+        discoverable = agents_skill_dir()
+        if not os.path.exists(os.path.join(discoverable, "SKILL.md")):
+            return dict(info, ok=False, reason="Harness 技能目录里没有 image-to-editable-ppt（%s）；"
+                                              "把 skill 放到 ~/.agents/skills/ 后重试" % discoverable)
+        return dict(info, ok=True, reason="可用（Harness headless 执行 page worker）")
+    hermes = hermes_path()
+    info["hermes"] = hermes
     if not (os.path.exists(hermes) or shutil.which("hermes")):
         return dict(info, ok=False, reason="未找到 hermes CLI（无法派 page worker）")
-    return dict(info, ok=True, reason="可用")
+    return dict(info, ok=True, reason="可用（Hermes 执行 page worker）")
 
 
 def _run(args: List[str], cwd: Optional[str] = None, timeout: int = SETUP_TIMEOUT) -> Dict[str, Any]:
@@ -136,11 +228,14 @@ def build_hints(blocks: List[Dict[str, Any]], ink_lines: List[Dict[str, Any]],
     for b in blocks or []:
         box = [round(b["x"] * img_w), round(b["y"] * img_h), round(b["w"] * img_w), round(b["h"] * img_h)]
         ink_box = _match_ink_box(box, groups)
+        pt = b.get("font_size_pt") or 0
         lines.append(dict(text=b["text"], role=b.get("role") or "body",
                           box_px=[round(v) for v in ink_box] if ink_box else box,
-                          font_pt=b.get("font_size_pt") or 0,
+                          font_pt=pt, font_pt_if_cjk=pt, font_pt_if_latin=pt,
                           size_group=nearest_group(box)))
-    return dict(source=dict(width=img_w, height=img_h),
+    # 直接写 skill 的标准 text_hints.json（它只认这个文件；旧 hermes_text_hints.json 已废弃）
+    return dict(schema_version=1, backend="slidecraft-vision",
+                source=dict(width_px=img_w, height_px=img_h),
                 provider="slidecraft-vision（等价于 PaddleOCR-VL 的内容感知提示）",
                 note="文字内容必须与本文件一致，不得改写/编造；box_px 为源图像素；"
                      "同级 size_group 的文本请使用同一字号。",
@@ -298,31 +393,71 @@ def _validation_passed(page_dir: str, retries: int = 3, wait: float = 4.0) -> Di
 
 
 def _worker_prompt(run_dir: str, page_id: str, page_dir: str) -> str:
+    """给 page worker 的包装提示。
+
+    skill 自己的 `worker-prompt.md` 是页面工作指令；这里补三件它不知道的事：
+    ① Harness 下必须先加载 skill；② 本平台的**文字真源**文件；③ 平台负责 record/finalize。
+    """
+    truth_path = os.path.join(page_dir, "truth_text.txt")
+    hints_path = os.path.join(page_dir, "text_hints.json")
+    hints_have_text = False
+    if os.path.exists(hints_path):
+        try:
+            hints = json.load(open(hints_path, encoding="utf-8"))
+            hints_have_text = any((line.get("text") or "").strip() for line in hints.get("lines") or [])
+        except (OSError, ValueError):
+            hints_have_text = False
+    if os.path.exists(truth_path):
+        truth = ("%s —— **本页文字真源（逐字采用）**：页面上的可编辑文字必须与它完全一致，"
+                 "不得改写、不得编造、不得增删；`text_hints.json` 只用于几何/字号，文字以本文件为准。\n"
+                 % truth_path)
+    elif hints_have_text:
+        truth = ("%s —— **本页文字真源（逐字采用）**：`lines[].text` 必须原样出现在页面上，"
+                 "不得改写、不得编造、不得增删；`box_px` 为源图像素，`font_pt_if_cjk/font_pt_if_latin` "
+                 "为字号，同级 `size_group` 必须用同一字号；hints 漏掉的行按源图补齐。\n" % hints_path)
+    else:
+        truth = ("本页没有文字真源文件（OCR 未配置或失败）：hints 只有几何，请按源图逐字读取文字，"
+                 "不得编造；完成后在返回里说明文字来源。\n")
+    load = ""
+    if agent_kind() == "harness":
+        load = ("0. 先用 `skill` 工具加载 **image-to-editable-ppt**（读完整 SKILL.md 与它指向的 references，"
+                "不要凭记忆），再按下述页面指令执行。\n\n")
     return (
         "你正在执行 image-to-editable-ppt skill 的 **page worker（单页重建）** 任务，请严格按该 skill 执行。\n\n"
+        + load +
         "1. 页面工作指令（必读）：%s/worker-prompt.md\n"
         "2. 权威契约与参考：%s/references/manifest-schema.md、page-decision-tree.md、cli-helper.md\n"
-        "3. 内容真源（重要）：%s/hermes_text_hints.json —— **文字内容必须与它完全一致，不得改写、不得编造、"
-        "不得增删文字**；几何参考其中的 box_px，字号参考 font_pt，同级 size_group 必须用同一字号。\n"
+        "3. 内容真源（重要）：%s"
         "4. 交付物：%s/manifest.json，然后用 `editppt page build %s` 生成 page.pptx 与 preview.png，"
         "并让 `editppt page validate %s` 通过。**不要执行 run record / run finalize**（平台负责）。\n"
         "5. 完成后用中文简述：validate 结果、text_boxes 与 shapes 数量、遇到的问题与取舍。\n"
-        % (page_dir, skill_dir(), page_dir, page_dir, page_dir, page_dir))
+        % (page_dir, skill_dir(), truth, page_dir, page_dir, page_dir))
 
 
 def _run_page_worker(page_dir: str, page_id: str, cancel_key: str = "") -> Dict[str, Any]:
-    """派一个 headless Hermes 当 page worker 重建这一页。
+    """派一个 headless agent 当 page worker 重建这一页（默认 DeepSeek Harness，可选 Hermes）。
 
     用 Popen + 轮询（而不是 `subprocess.run`）是为了能**中途取消**：用户点「停止」后
     最多 1 秒内终止子进程，现场（已完成页 + 该页状态）全部保留，便于断点续跑。
     """
-    prompt = _worker_prompt(os.path.dirname(os.path.dirname(page_dir)), page_id, page_dir)
-    cmd = [hermes_path(), "-z", prompt, "--skills", "image-to-editable-ppt", "--yolo"]
+    run_dir = os.path.dirname(os.path.dirname(page_dir))
+    prompt = _worker_prompt(run_dir, page_id, page_dir)
+    agent = agent_kind()
+    if agent == "harness":
+        # cwd 决定 headless agent 的 workspace（workspace-write 只允许写 run 目录），
+        # 页面产物都在 run_dir/pages/page_NNN/ 下，正好在可写范围内。
+        cmd = [harness_path(), "--profile", harness_profile(), prompt]
+        cwd: Optional[str] = run_dir
+    else:
+        cmd = [hermes_path(), "-z", prompt, "--skills", "image-to-editable-ppt", "--yolo"]
+        cwd = None
     started = time.time()
     try:
-        proc = subprocess.Popen(cmd, env=_env(), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        proc = subprocess.Popen(cmd, env=_env(), cwd=cwd, stdout=subprocess.PIPE,
+                                stderr=subprocess.STDOUT, text=True)
     except OSError as exc:
         return dict(ok=False, tail="%s: %s" % (type(exc).__name__, exc))
+    timeout = page_worker_timeout()
     try:
         while proc.poll() is None:
             if cancel_key and is_cancelled(cancel_key):
@@ -332,16 +467,17 @@ def _run_page_worker(page_dir: str, page_id: str, cancel_key: str = "") -> Dict[
                 except subprocess.TimeoutExpired:
                     proc.kill()
                 return dict(ok=False, cancelled=True, tail="已按用户要求停止（现场保留，可继续）")
-            if time.time() - started > PAGE_WORKER_TIMEOUT:
+            if time.time() - started > timeout:
                 proc.terminate()
                 try:
                     proc.wait(timeout=15)
                 except subprocess.TimeoutExpired:
                     proc.kill()
-                return dict(ok=False, tail="page worker 超时（%d 秒）" % PAGE_WORKER_TIMEOUT)
+                return dict(ok=False, tail="page worker 超时（%d 秒）" % timeout)
             time.sleep(1)
         out = proc.stdout.read() if proc.stdout else ""
-        return dict(ok=proc.returncode == 0, tail=(out or "")[-1500:])
+        tail = (out or "")[-1500:]
+        return dict(ok=proc.returncode == 0, tail=tail or ("page worker 退出码 %s" % proc.returncode))
     finally:
         if proc.poll() is None:
             proc.kill()
@@ -432,96 +568,370 @@ def convert(project_id: str, page_nos: List[int],
     if not resume_dir and all(row.get('current_version_id') and row.get('id') for row in rows):
         with open(os.path.join(run_dir, 'deckforge_snapshot.json'), 'w', encoding='utf-8') as target:
             json.dump(rows, target, ensure_ascii=False)
+    return _run_pages(project_id, run_dir, rows, notify, cancel_key)
+
+
+def _status_json(run_dir: str) -> Dict[str, Any]:
+    res = _run(["run", "status", run_dir, "--json"])
+    try:
+        return json.loads(res.get("out") or "{}")
+    except ValueError:
+        return {}
+
+
+def _next_json(run_dir: str) -> Dict[str, Any]:
+    """用 skill 自己的状态机决策下一步（run next --json），而不是我们猜。"""
+    res = _run(["run", "next", run_dir, "--json"])
+    try:
+        payload = json.loads(res.get("out") or "{}")
+    except ValueError:
+        payload = {}
+    if not payload:
+        payload = dict(stage="error", reason=(res.get("err") or res.get("out") or "run next 输出无法解析")[-300:])
+    return payload
+
+
+REQUIRED_PAGE_OUTPUTS = {
+    "page_manifest": "manifest.json",
+    "imagegen_jobs": "imagegen-jobs.json",
+    "page_pptx": "page.pptx",
+    "preview": "preview.png",
+    "contact_sheet": "split_assets_contact.png",
+    "validation": "validation.json",
+    "page_result": "page_result.json",
+}
+
+
+def _ensure_page_result(page_dir: str) -> bool:
+    """worker 忘了写 page_result.json 时补一份纯路径清单（不改页面内容）。
+
+    record 只靠它定位产物；所有产物齐全且 validation 已通过时，缺这一份属于
+    agent 收尾遗漏。平台补写不会伪造任何页面内容，并只做路径清单。
+    """
+    path = os.path.join(page_dir, "page_result.json")
+    if os.path.isfile(path):
+        return True
+    required = [name for key, name in REQUIRED_PAGE_OUTPUTS.items() if key != "page_result"]
+    if not all(os.path.isfile(os.path.join(page_dir, name)) for name in required):
+        return False
+    try:
+        json.dump({key: name for key, name in REQUIRED_PAGE_OUTPUTS.items()},
+                  open(path, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
+        return True
+    except OSError:
+        return False
+
+
+def _record_page(project_id: str, run_dir: str, page_id: str, page_dir: str,
+                 page_no: Any, recorded: List[Any], notify: Callable[..., None],
+                 agent_tail: str, total: int = 0) -> Dict[str, Any]:
+    """校验 → record（状态写入串行）→ 记账；返回 {ok,error}。"""
+    check = _validation_passed(page_dir)
+    if not check.get("passed"):
+        return dict(ok=False, stage="rebuild",
+                    error=str(check.get("reason") or check.get("errors") or "校验未通过")[:300],
+                    agent_tail=agent_tail[-200:])
+    if not _ensure_page_result(page_dir):
+        return dict(ok=False, stage="record", error="页面产物不齐（缺 page_result.json 或其他必需文件）")
+    with STATE_LOCK:
+        rec = _run(["run", "record", run_dir, "--page", page_id, "--agent-id", "deckforge-%s" % page_no])
+        if not rec["ok"]:                                   # worker 刚退出、页面产物还在落盘时重试一次
+            time.sleep(5)
+            rec = _run(["run", "record", run_dir, "--page", page_id, "--agent-id", "deckforge-%s" % page_no])
+        if not rec["ok"]:
+            return dict(ok=False, stage="record", error=(rec["err"] or rec["out"])[-300:])
+        recorded.append(page_no)
+        db.log_usage(project_id, page_no, "editable_hi", "editppt-skill", "manifest+build", "-", 0.0,
+                     0, True, "第三方 skill 高精度重建（agent 逐页写 manifest）%s" % agent_tail[:80].replace("\n", " "))
+    notify(stage="page_done", page=page_no, message="第 %s 页已重建并通过校验" % page_no,
+           done=len(recorded), total=total)
+    return dict(ok=True)
+
+
+def _run_pages(project_id: str, run_dir: str, rows: List[Dict[str, Any]],
+               notify: Callable[..., None], cancel_key: str = "") -> Dict[str, Any]:
+    """用 skill 的 run next 状态机驱动：并发 dispatch/record → finalize → 发布产物。
+
+    页面按 prepare 顺序与 `rows` 对齐（page_001..N）。多个 page worker 可并发；
+    page_jobs.json 的读改写统一走 STATE_LOCK，worker 进程本身互不共享状态。
+    """
     dirs = _page_dirs(run_dir)
     if not dirs:
         return dict(ok=False, run_dir=run_dir, error="prepare 没有生成任何页面目录")
+    page_id_to_row = {os.path.basename(d): rows[i] for i, d in enumerate(dirs) if i < len(rows)}
+    page_dir_by_id = {os.path.basename(d): d for d in dirs}
+    pages = [r["page_no"] for r in rows]
+
+    status = _status_json(run_dir)
+    recorded: List[Any] = []
+    for state_name in ("recorded", "accepted"):
+        for page_id in (status.get("pages") or {}).get(state_name) or []:
+            row = page_id_to_row.get(page_id)
+            if row is not None:
+                recorded.append(row["page_no"])
+    # 上次被取消/中断留下的 dispatched 页：没有活跃 worker，先重置为 pending（现场保留）。
+    # reset 对 dispatched 页要求匹配 --agent-id + --confirm-lost，否则会静默失败。
+    try:
+        jobs_state = json.load(open(os.path.join(run_dir, "page_jobs.json"), encoding="utf-8"))
+    except (OSError, ValueError):
+        jobs_state = {"pages": []}
+    for item in jobs_state.get("pages") or []:
+        if item.get("status") != "dispatched":
+            continue
+        agent_id = str((item.get("dispatch") or {}).get("agent_id") or "")
+        with STATE_LOCK:
+            _run(["run", "reset", run_dir, "--page", item.get("page_id"),
+                  "--agent-id", agent_id, "--confirm-lost"])
 
     failures: List[Dict[str, Any]] = []
-    recorded: List[int] = []
     cancelled = False
-    for idx, page_dir in enumerate(dirs):
-        page_id = os.path.basename(page_dir)
-        page_no = rows[idx]["page_no"] if idx < len(rows) else None
-        if _page_recorded(run_dir, page_id):
-            recorded.append(page_no)
-            notify(stage="page_done", page=page_no, message="第 %s 页上次已完成，跳过" % page_no,
-                   done=idx + 1, total=len(dirs))
-            continue
-        if cancel_key and is_cancelled(cancel_key):             # 每页开始前检查一次取消
+    workers = max_concurrent_pages()
+    notify(stage="prepare", message="已就绪：%d 页（并发 %d）" % (len(dirs), workers),
+           done=len(recorded), total=len(dirs))
+
+    while True:
+        if cancel_key and is_cancelled(cancel_key):
             cancelled = True
             break
-        # 上次可能停在 dispatched（被取消或中断）→ 先 reset 才能重新派发（它状态机的要求）
-        if _page_status(run_dir, page_id) == "dispatched":
-            _run(["run", "reset", run_dir, "--page", page_id, "--confirm-lost"])
-        notify(stage="page", page=page_no, message="正在重建第 %s 页（%d/%d）" % (page_no, idx + 1, len(dirs)),
-               done=idx, total=len(dirs))
-        try:
-            _prepare_page(run_dir, page_dir, rows[idx], notify)
-        except Exception as exc:                                # noqa: BLE001
-            _log_page_error(page_dir, "hints", exc)
-            failures.append(dict(page_no=page_no, stage="hints", error="%s: %s" % (type(exc).__name__, exc)))
-            continue
-
-        worker = _run(["run", "dispatch", run_dir, "--page", page_id,
-                       "--agent-id", "deckforge-%d" % (idx + 1),
-                       "--prompt-file", os.path.join(page_dir, "worker-prompt.md")])
-        if not worker["ok"]:
-            failures.append(dict(page_no=page_no, stage="dispatch", error=(worker["err"] or worker["out"])[-300:]))
-            continue
-
-        agent = _run_page_worker(page_dir, page_id, cancel_key or "")
-        if agent.get("cancelled"):
-            cancelled = True
-            failures.append(dict(page_no=page_no, stage="cancelled", error="已停止（现场保留，可继续）"))
+        nxt = _next_json(run_dir)
+        stage = nxt.get("stage")
+        if stage == "finalize":
             break
-        agent_tail = agent.get("tail", "")
-        check = _validation_passed(page_dir)
-        if not check.get("passed"):
-            failures.append(dict(page_no=page_no, stage="rebuild",
-                                 error=str(check.get("reason") or check.get("errors") or "校验未通过")[:300]))
+        if stage == "configure_backend":
+            with STATE_LOCK:
+                _run(["run", "backend", run_dir])
             continue
+        if stage not in ("dispatch_pages", "rebuild_page_locally"):
+            if stage == "wait":
+                failures.append(dict(stage="wait",
+                                     error="仍有未完成页面（可能被其它进程占用）：%s"
+                                           % (nxt.get("active_or_unfinished_pages") or "")))
+            else:
+                failures.append(dict(stage=stage or "unknown",
+                                     error=str(nxt.get("reason") or nxt)[:300]))
+            break
 
-        rec = _run(["run", "record", run_dir, "--page", page_id, "--agent-id", "deckforge-%d" % (idx + 1)])
-        if not rec["ok"]:                                   # worker 刚退出、页面产物还在落盘时重试一次
-            time.sleep(5)
-            rec = _run(["run", "record", run_dir, "--page", page_id, "--agent-id", "deckforge-%d" % (idx + 1)])
-        if not rec["ok"]:
-            failures.append(dict(page_no=page_no, stage="record", error=(rec["err"] or rec["out"])[-300:]))
-            continue
-        recorded.append(page_no)
-        notify(stage="page_done", page=page_no, message="第 %s 页已重建并通过校验" % page_no,
-               done=idx + 1, total=len(dirs))
-        db.log_usage(project_id, page_no, "editable_hi", "editppt-skill", "manifest+build", "-", 0.0,
-                     0, True, "第三方 skill 高精度重建（agent 逐页写 manifest）%s" % agent_tail[:80].replace("\n", " "))
+        selected = [p for p in (nxt.get("suggested_pages") or []) if p in page_id_to_row][:workers]
+        batch: List[tuple] = []
+        for page_id in selected:
+            if cancel_key and is_cancelled(cancel_key):
+                cancelled = True
+                break
+            page_dir = page_dir_by_id[page_id]
+            row = page_id_to_row[page_id]
+            page_no = row.get("page_no")
+            notify(stage="page", page=page_no,
+                   message="正在重建第 %s 页（并发 %d，已完成 %d/%d）"
+                           % (page_no, workers, len(recorded), len(dirs)),
+                   done=len(recorded), total=len(dirs))
+            try:
+                _prepare_page(run_dir, page_dir, row, notify)
+            except Exception as exc:                        # noqa: BLE001
+                _log_page_error(page_dir, "hints", exc)
+                failures.append(dict(page_no=page_no, stage="hints",
+                                     error="%s: %s" % (type(exc).__name__, exc)))
+                continue
+            with STATE_LOCK:
+                disp = _run(["run", "dispatch", run_dir, "--page", page_id,
+                             "--agent-id", "deckforge-%s" % page_no,
+                             "--prompt-file", os.path.join(page_dir, "worker-prompt.md")])
+            if not disp["ok"]:
+                failures.append(dict(page_no=page_no, stage="dispatch",
+                                     error=(disp["err"] or disp["out"])[-300:]))
+                continue
+            batch.append((page_id, page_dir, row))
+        if cancelled:
+            break
+        if not batch:
+            failures.append(dict(stage="dispatch", error="没有可派发的页面"))
+            break
+
+        def run_one(item: tuple) -> tuple:
+            page_id, page_dir, row = item
+            return page_id, page_dir, row, _run_page_worker(page_dir, page_id, cancel_key or "")
+
+        with ThreadPoolExecutor(max_workers=min(len(batch), workers)) as pool:
+            futures = [pool.submit(run_one, item) for item in batch]
+            for future in as_completed(futures):
+                page_id, page_dir, row, agent = future.result()
+                page_no = row.get("page_no")
+                if agent.get("cancelled"):
+                    cancelled = True
+                    failures.append(dict(page_no=page_no, stage="cancelled",
+                                         error="已停止（现场保留，可继续）"))
+                    continue
+                result = _record_page(project_id, run_dir, page_id, page_dir, page_no,
+                                      recorded, notify, agent.get("tail") or "", total=len(dirs))
+                if not result.get("ok"):
+                    failures.append(dict(page_no=page_no, stage=result.get("stage"),
+                                         error=result.get("error"),
+                                         agent_tail=result.get("agent_tail") or ""))
+        if cancelled:
+            break
 
     # 失败/取消**不再一票否决**：已完成并记录的页保住，如实报出剩余页，可继续（断点续跑）
     if cancelled:                                              # 用户主动停止：保留现场，不当失败处理
-        return dict(ok=False, cancelled=True, run_dir=run_dir, pages=[r["page_no"] for r in rows],
+        return dict(ok=False, cancelled=True, run_dir=run_dir, pages=pages,
                     recorded=recorded, failures=failures, partial=True,
                     error="已停止：已完成 %d/%d 页（现场保留，可点「继续转换」接着跑）" % (len(recorded), len(dirs)))
     if len(recorded) < len(dirs):
-        return dict(ok=False, partial=True, run_dir=run_dir, pages=[r["page_no"] for r in rows],
+        return dict(ok=False, partial=True, run_dir=run_dir, pages=pages,
                     recorded=recorded, failures=failures,
                     error="%d/%d 页未通过校验（已完成 %d 页已保留现场，可点「继续转换」重试剩余页）：%s"
                           % (len(dirs) - len(recorded), len(dirs), len(recorded), run_dir))
-    if is_cancelled(cancel_key) if cancel_key else False:       # 全部记录的临界点被取消
-        return dict(ok=False, cancelled=True, run_dir=run_dir, recorded=recorded, failures=failures, partial=True,
+    if cancel_key and is_cancelled(cancel_key):                # 全部记录的临界点被取消
+        return dict(ok=False, cancelled=True, run_dir=run_dir, pages=pages, recorded=recorded,
+                    failures=failures, partial=True,
                     error="已停止（所有页已完成，可直接重新转换以组装 deck）")
 
     notify(stage="finalize", message="组装最终 deck", done=len(dirs), total=len(dirs))
-    fin = _run(["run", "finalize", run_dir], timeout=SETUP_TIMEOUT)
+    with STATE_LOCK:
+        fin = _run(["run", "finalize", run_dir], timeout=SETUP_TIMEOUT)
     if not fin["ok"]:
-        return dict(ok=False, run_dir=run_dir, failures=[dict(stage="finalize", error=fin["err"][-300:])],
+        return dict(ok=False, run_dir=run_dir, pages=pages,
+                    failures=[dict(stage="finalize", error=fin["err"][-300:])],
                     error="finalize 失败：%s" % (fin["err"] or fin["out"])[-300:])
     decks = [os.path.join(run_dir, "final", f) for f in sorted(os.listdir(os.path.join(run_dir, "final")))
              if f.endswith(".pptx")]
     if not decks:
-        return dict(ok=False, run_dir=run_dir, error="finalize 未产出 pptx")
+        return dict(ok=False, run_dir=run_dir, pages=pages, error="finalize 未产出 pptx")
     # 产物**发布到 exports/**，而不是留在 run 工作目录里：
     # 否则 run 目录永远不能清理（导出会指向工作目录），这是实际踩到的设计问题。
     published = _publish_deck(decks[-1])
     return dict(ok=True, deck=published, run_dir=run_dir, source_deck=decks[-1],
-                pages=[r["page_no"] for r in rows], failures=[])
+                pages=pages, failures=[])
+
+
+def convert_items(project_id: str, items: List[Dict[str, Any]],
+                  on_event: Optional[Callable[[Dict[str, Any]], None]] = None,
+                  cancel_key: str = "", validate_text: bool = False) -> Dict[str, Any]:
+    """把**任意来源的页面图**交给 skill 精细重建（美化流程用）。
+
+    `items`: [{page_no, image_path, texts?}]。`texts` 是原稿文字真源（逐字采用）；
+    给了就在每一页写 `truth_text.txt`，并在 finalize 后做「不编造/不改写」校验。
+    返回 dict(ok, deck, run_dir, pages, failures, warnings)；同步阻塞，调用方放线程里。
+    """
+    def notify(**kw) -> None:
+        if on_event:
+            try:
+                on_event(kw)
+            except Exception:                                  # noqa: BLE001 —— 进度回调不能影响主流程
+                pass
+
+    state = available()
+    if not state.get("ok"):
+        return dict(ok=False, error=state.get("reason"), run_dir="")
+
+    rows: List[Dict[str, Any]] = []
+    images: List[str] = []
+    for item in items:
+        page_no = item.get("page_no")
+        path = item.get("image_path") or ""
+        if not path or not os.path.isfile(path):
+            return dict(ok=False, run_dir="", error="第 %s 页没有页面图，无法转换" % page_no)
+        rows.append(dict(page_no=page_no, image_path=path,
+                         truth_texts=item.get("texts") if item.get("texts") is not None else []))
+        images.append(path)
+    if not rows:
+        return dict(ok=False, run_dir="", error="没有要转换的页面")
+
+    run_root = os.path.join(config.FILES_DIR, "editppt")
+    os.makedirs(run_root, exist_ok=True)
+    run_dir = os.path.join(run_root, "%s-%s" % (project_id, db.uid("run")))
+    notify(stage="prepare", message="准备精细重建（%d 页）" % len(images), done=0, total=len(rows))
+    prep = _run(["prepare"] + images + ["--out-root", run_dir], timeout=SETUP_TIMEOUT + 120 * len(images))
+    if not prep["ok"]:
+        return dict(ok=False, run_dir=run_dir, error="prepare 失败：%s" % (prep["err"] or prep["out"])[-400:])
+    run_dir = _latest_run_dir(run_dir) or run_dir
+    try:
+        json.dump([row["page_no"] for row in rows], open(os.path.join(run_dir, "deckforge_pages.json"), "w"))
+    except OSError:
+        pass
+
+    result = _run_pages(project_id, run_dir, rows, notify, cancel_key)
+    if result.get("ok") and validate_text:
+        check = _validate_deck_text(result["deck"], rows)
+        result["warnings"] = check.get("warnings", [])
+        if not check.get("ok"):
+            return dict(ok=False, run_dir=run_dir, pages=result.get("pages") or [],
+                        deck=result.get("deck"), warnings=check.get("warnings", []),
+                        failures=[dict(stage="validate", error=check.get("error", ""))],
+                        error=check.get("error", "精细重建产物未通过文字校验"))
+    return result
+
+
+def _deck_text(path: str) -> tuple:
+    """读 pptx 的所有文字（含组合与表格单元格）与幻灯片数。"""
+    from pptx import Presentation
+    prs = Presentation(path)
+    texts: List[str] = []
+
+    def visit(shapes) -> None:
+        for shape in shapes:
+            if getattr(shape, "shape_type", None) == 6:        # 组合形状
+                visit(shape.shapes)
+                continue
+            if getattr(shape, "has_text_frame", False) and shape.text.strip():
+                texts.append(shape.text)
+            if getattr(shape, "has_table", False):
+                for row in shape.table.rows:
+                    for cell in row.cells:
+                        if cell.text.strip() and not cell.is_spanned:
+                            texts.append(cell.text)
+
+    for slide in prs.slides:
+        visit(slide.shapes)
+    return prs, texts
+
+
+def _validate_deck_text(deck: str, rows: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """finalize 后的文字/图片硬校验：不编造、不改写、不整页贴图。
+
+    文字按「字符多重集」比对（允许换行/拆框带来的切分差异，不允许增删字）。
+    缺失比例过大会判失败；少量缺失（例如 logo 被当成图片资产）只记警告。
+    """
+    from collections import Counter
+
+    try:
+        prs, actual_texts = _deck_text(deck)
+    except Exception as exc:                                    # noqa: BLE001
+        return dict(ok=False, error="产物无法解析：%s: %s" % (type(exc).__name__, exc), warnings=[])
+
+    page_rows = sorted(rows, key=lambda r: r.get("page_no") or 0)
+    if len(prs.slides) != len(page_rows):
+        return dict(ok=False, error="产物页数不一致（%d 页，输入 %d 页）"
+                    % (len(prs.slides), len(page_rows)), warnings=[])
+
+    # 禁止整页图（图片版冒充可编辑）
+    for index, slide in enumerate(prs.slides, 1):
+        for shape in slide.shapes:
+            if getattr(shape, "shape_type", None) == 13 and \
+                    (shape.width or 0) >= prs.slide_width * .95 and (shape.height or 0) >= prs.slide_height * .95:
+                return dict(ok=False, error="第 %d 页用了整页图片冒充可编辑" % index, warnings=[])
+
+    truth = "".join(str(t) for row in page_rows for t in (row.get("truth_texts") or []))
+    norm = lambda value: re.sub(r"\s+", "", value)              # noqa: E731
+    truth_norm = norm(truth)
+    actual_norm = norm("".join(actual_texts))
+    if not truth_norm:
+        return dict(ok=True, warnings=[])
+    if not actual_norm:
+        return dict(ok=False, error="产物没有任何可编辑文字（真源有 %d 字）" % len(truth_norm), warnings=[])
+
+    truth_chars, actual_chars = Counter(truth_norm), Counter(actual_norm)
+    invented = actual_chars - truth_chars
+    missing = truth_chars - actual_chars
+    if invented:
+        sample = "".join(list(invented.elements())[:12])
+        return dict(ok=False, error="产物出现真源里没有的文字（可能是编造/改写）：%s…" % sample, warnings=[])
+    missing_ratio = sum(missing.values()) / max(1, len(truth_norm))
+    warnings = []
+    if missing_ratio > 0.35:
+        return dict(ok=False, error="产物缺失 %.0f%% 的真源文字（超过 35%% 上限）" % (missing_ratio * 100),
+                    warnings=warnings)
+    if missing_ratio > 0:
+        warnings.append("产物缺少 %.0f%% 的真源文字（可能被当成图片资产；请按页核对）" % (missing_ratio * 100))
+    return dict(ok=True, warnings=warnings)
 
 
 def _publish_deck(deck: str) -> str:
@@ -547,9 +957,53 @@ def _latest_run_dir(parent: str) -> Optional[str]:
     return sorted(subs)[-1] if subs else parent
 
 
+def _hints_text_count(page_dir: str) -> int:
+    path = os.path.join(page_dir, "text_hints.json")
+    try:
+        hints = json.load(open(path, encoding="utf-8"))
+    except (OSError, ValueError):
+        return 0
+    return sum(1 for line in hints.get("lines") or [] if (line.get("text") or "").strip())
+
+
+def _run_ocr(page_dir: str) -> Dict[str, Any]:
+    """离线 OCR 兜底（RapidOCR）：没有真源、也没有视觉识别时，给 text_hints.json 补文本。"""
+    if ocr_mode() == "off":
+        return dict(ok=False, reason="OCR 已关闭（editppt.ocr=off）")
+    script = os.path.join(config.ROOT, "server", "pptx", "editppt_ocr.py")
+    if not os.path.isfile(script):
+        return dict(ok=False, reason="缺少 OCR 适配器：%s" % script)
+    python = ocr_python()
+    if not os.path.isfile(python):
+        return dict(ok=False, reason="找不到 editppt venv 的 python3：%s" % python)
+    try:
+        proc = subprocess.run([python, script, str(page_dir), "--skill-root", skill_dir()],
+                              env=_env(), capture_output=True, text=True, timeout=300)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return dict(ok=False, reason="%s: %s" % (type(exc).__name__, exc))
+    payload: Dict[str, Any] = {}
+    for line in reversed((proc.stdout or "").strip().splitlines()):
+        try:
+            payload = json.loads(line)
+            break
+        except ValueError:
+            continue
+    if proc.returncode != 0 or not payload.get("ok"):
+        return dict(ok=False, reason=(payload.get("reason") or (proc.stderr or proc.stdout) or "OCR 失败")[-300:])
+    return payload
+
+
 def _prepare_page(run_dir: str, page_dir: str, row: Dict[str, Any],
                   notify: Callable[..., None]) -> None:
-    """生成 worker prompt、墨迹测量、以及内容真源 hints（缺一不可）。"""
+    """生成 worker prompt、墨迹测量、以及内容真源（缺一不可）。
+
+    真源优先级：
+      1. `truth_texts`（美化：原稿逐字文本）→ truth_text.txt
+      2. 视觉识别（生成流程：native_scene/vision 或 Qwen-VL）→ 写标准 text_hints.json 的 text
+      3. skill 自己的 hints 已带文本（配置了 PaddleOCR token）→ 直接用
+      4. 离线 RapidOCR 适配器补文本（server/pptx/editppt_ocr.py）
+      5. 都没有 → 如实失败，提示配置 OCR，而不是让 worker 猜文字
+    """
     prompt_script = os.path.join(skill_dir(), "scripts", "build-page-worker-prompt.py")
     subprocess.run([os.path.join(os.path.dirname(cli_path()), "python3"),
                     prompt_script, run_dir, "--page", os.path.basename(page_dir),
@@ -557,23 +1011,56 @@ def _prepare_page(run_dir: str, page_dir: str, row: Dict[str, Any],
                    env=_env(), check=True, capture_output=True, text=True, timeout=120)
     _run(["page", "hints", page_dir])                            # 它的墨迹测量（几何 + size_group）
 
+    truth_texts = row.get("truth_texts")
+    if truth_texts is not None:
+        texts = [str(item).strip() for item in truth_texts if str(item).strip()]
+        with open(os.path.join(page_dir, "truth_text.txt"), "w", encoding="utf-8") as target:
+            target.write("\n".join(texts))
+        json.dump(dict(page_no=row.get("page_no"), texts=texts),
+                  open(os.path.join(page_dir, "truth_text.json"), "w", encoding="utf-8"),
+                  ensure_ascii=False, indent=1)
+        notify(stage="hints", message="第 %s 页文字真源已就绪（%d 条）" % (row.get("page_no"), len(texts)))
+        return
+
     img = row.get("image_path") or ""
     scene = json.loads(row.get("native_scene_json") or "{}") if row.get("native_scene_json") else {}
     vision = (scene.get("vision") or {})
     blocks = scene.get("blocks") or []
+    vision_error = ""
     if not blocks or not vision:
-        res = providers.analyze_slide_with_qwen(img)
-        if not res.get("ok"):
-            raise RuntimeError("视觉识别失败，无法提供文字真源：%s" % str(res.get("message"))[:120])
-        from .pipeline import blocks_from_vision
-        blocks = blocks_from_vision(res["scene"], int(row.get("width") or 0), int(row.get("height") or 0))
-    if not blocks:
-        raise RuntimeError("视觉识别没有返回任何文字块")
-    ink = []
-    hints_path = os.path.join(page_dir, "text_hints.json")
-    if os.path.exists(hints_path):
-        ink = (json.load(open(hints_path, encoding="utf-8")).get("lines") or [])
-    payload = build_hints(blocks, ink, int(row.get("width") or 1600), int(row.get("height") or 900))
-    json.dump(payload, open(os.path.join(page_dir, "hermes_text_hints.json"), "w", encoding="utf-8"),
-              ensure_ascii=False, indent=1)
-    notify(stage="hints", message="第 %s 页提示已就绪（%d 条文字）" % (row.get("page_no"), len(blocks)))
+        try:
+            res = providers.analyze_slide_with_qwen(img)
+        except Exception as exc:                                # noqa: BLE001 —— 视觉不可用不致命，交给 OCR
+            res = dict(ok=False, message="%s: %s" % (type(exc).__name__, exc))
+        if res.get("ok"):
+            from .pipeline import blocks_from_vision
+            blocks = blocks_from_vision(res["scene"], int(row.get("width") or 0), int(row.get("height") or 0))
+        else:
+            vision_error = str(res.get("message") or res.get("reason") or "视觉识别不可用")[:160]
+    if blocks:
+        hints_path = os.path.join(page_dir, "text_hints.json")
+        ink = []
+        if os.path.exists(hints_path):
+            try:
+                ink = (json.load(open(hints_path, encoding="utf-8")).get("lines") or [])
+            except (OSError, ValueError):
+                ink = []
+        payload = build_hints(blocks, ink, int(row.get("width") or 1600), int(row.get("height") or 900))
+        json.dump(payload, open(hints_path, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+        notify(stage="hints", message="第 %s 页文字真源已就绪（%d 条）" % (row.get("page_no"), len(blocks)))
+        return
+
+    if _hints_text_count(page_dir):
+        notify(stage="hints", message="第 %s 页使用 skill 的 OCR hints（%d 行带文字）"
+               % (row.get("page_no"), _hints_text_count(page_dir)))
+        return
+
+    ocr = _run_ocr(page_dir)
+    if ocr.get("ok") and ocr.get("lines"):
+        notify(stage="hints", message="第 %s 页离线 OCR 已就绪（%d 行）"
+               % (row.get("page_no"), int(ocr.get("lines") or 0)))
+        return
+    raise RuntimeError("无法获取文字真源：%s；OCR 兜底也不可用（%s）。"
+                       "请配置 PaddleOCR token（editppt config --paddle-ocr-token）"
+                       "或安装 RapidOCR 后重试"
+                       % (vision_error or "没有视觉识别结果", ocr.get("reason") or "未知原因"))

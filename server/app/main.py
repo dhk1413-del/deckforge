@@ -16,8 +16,8 @@ from fastapi.responses import FileResponse, JSONResponse, Response, StreamingRes
 from fastapi.staticfiles import StaticFiles
 
 from . import operations, export_snapshots
-from . import (beautify, codex_engine, config, db, editppt_engine, page_import, pipeline, providers, slide_notes,
-               source_pages, style_builder, stylepacks)
+from . import (beautify, config, db, editppt_engine, page_import, pipeline, provider_usage, providers,
+               slide_notes, source_pages, style_builder, stylepacks)
 from .paths import app_version
 
 # 版本号唯一真源是仓库根 `VERSION`（别在这里写死字面量；门禁 tools/check_version_sync.py 会拦）。
@@ -1005,7 +1005,7 @@ def export(pid: str, kind: str = Query("image")) -> Dict[str, Any]:
         key = 'editable' if kind == 'beautify_editable' else 'image'
         path = state.get('exports', {}).get(key, '')
         if not path or not os.path.isfile(path):
-            raise HTTPException(400, '暂无美化产物，请先跑美化；可编辑版需 Codex 重建成功')
+            raise HTTPException(400, '暂无美化产物，请先跑美化；可编辑版需精细重建成功')
         return FileResponse(path, filename=re.sub(r"[^\w.\u4e00-\u9fff-]", "_",
                             (proj.get("title") or "deck") + "_" + kind + ".pptx"),
                             media_type='application/vnd.openxmlformats-officedocument.presentationml.presentation')
@@ -1106,6 +1106,15 @@ async def job_stream(job_id: str) -> StreamingResponse:
 
 
 # ────────────────────────── 用量 ──────────────────────────
+
+@app.get("/api/provider-usage")
+def provider_usage_endpoint(refresh: bool = Query(False)) -> Dict[str, Any]:
+    """供应商面板侧用量（New API 兼容计费接口，当前 GuaiHub）。
+
+    只读、不花钱；60 秒缓存。失败时返回 `ok:false + error`，不抛 5xx —— 统计页绝不因此打不开。
+    """
+    return provider_usage.summary(refresh=refresh)
+
 
 @app.get("/api/usage")
 def usage(range: str = Query("month")) -> Dict[str, Any]:
@@ -1314,11 +1323,6 @@ def style_builder_delete(bid: str) -> Dict[str, Any]:
         raise HTTPException(404, str(e))
 
 
-@app.get('/api/codex-engine')
-async def codex_status() -> Dict[str, Any]:
-    return await asyncio.to_thread(codex_engine.available)
-
-
 def _beautify_project(pid):
     proj = db.q1('SELECT * FROM projects WHERE id=?', (pid,))
     if not proj:
@@ -1464,7 +1468,7 @@ def beautify_status(pid: str) -> Dict[str, Any]:
         state = dict(warnings=['原稿已变更，请重新生成美化预览'])
     result = dict(phase=state.get('phase', ''), mode=state.get('mode', 'img2img'), page_count=state.get('page_count', 0),
                   page_nos=state.get('page_nos', []), rendered=state.get('rendered', 0), confirmed=state.get('confirmed', False),
-                  pages=[], codex=state.get('codex', {'ok': False}), exports={}, warnings=state.get('warnings', []))
+                  pages=[], editable_engine=state.get('editable_engine'), exports={}, warnings=state.get('warnings', []))
     for page in state.get('pages', []):
         result['pages'].append(dict(page_no=page['page_no'],
             origin_url=pipeline._files_url(page['origin']) if os.path.isfile(page.get('origin', '')) else '',
