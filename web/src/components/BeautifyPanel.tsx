@@ -679,6 +679,15 @@ export function BeautifyPanel({ packs, loadingPacks, onStepChange, resumeProject
         <button type="button" className="btn btn-secondary rounded-full" disabled={busy} onClick={() => setStep(3)}>返回内容梳理</button>
         <button type="button" className="btn btn-primary rounded-full px-6" disabled={busy || !packId || !selected.length || !contentSaved} onClick={() => void startPreview()}>生成前 <span className="num">{Math.min(3, selected.length)}</span> 页预览</button>
       </ActionBar>}
+      {step === 4 && selected.length > 0 && (
+        <p className="m-0 text-caption text-ink-sub">
+          共 <span className="num">{selected.length}</span> 页；
+          {result?.concurrency
+            ? <>服务端每批最多 <span className="num">{result.concurrency}</span> 页并发生成{selected.length > result.concurrency ? <>（分 <span className="num">{Math.ceil(selected.length / result.concurrency)}</span> 批）</> : null}，单页耗时取决于生图模型</>
+            : <>按页逐张生成，单页耗时取决于生图模型</>}
+          。
+        </p>
+      )}
       {step === 5 && editableBusy && <div className="panel-alt text-body-sm" role="status">{editableStream.message || '正在精细重建可编辑版…'}</div>}
       {versionPreview && (
         <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-3 bg-black/70 p-4" role="dialog" aria-modal="true"

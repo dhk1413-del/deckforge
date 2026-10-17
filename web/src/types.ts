@@ -647,6 +647,8 @@ export interface BeautifyStatus {
   page_count: number
   rendered: number
   confirmed: boolean
+  /** 服务端逐页生成并发上限（前端据此提示分批，不写死数字） */
+  concurrency?: number
   pages: BeautifyPage[]
   /** 按需精细重建（image-to-editable-ppt）的最近一次结果 */
   editable_engine?: { ok: boolean; engine?: string; path?: string; seconds?: number; message?: string; warnings?: string[]; run_dir?: string; pages?: number }

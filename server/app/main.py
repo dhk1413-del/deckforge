@@ -1502,7 +1502,8 @@ def beautify_status(pid: str) -> Dict[str, Any]:
         state = dict(warnings=['原稿已变更，请重新生成美化预览'])
     result = dict(phase=state.get('phase', ''), mode=state.get('mode', 'img2img'), page_count=state.get('page_count', 0),
                   page_nos=state.get('page_nos', []), rendered=state.get('rendered', 0), confirmed=state.get('confirmed', False),
-                  pages=[], editable_engine=state.get('editable_engine'), exports={}, warnings=state.get('warnings', []))
+                  pages=[], editable_engine=state.get('editable_engine'), exports={}, warnings=state.get('warnings', []),
+                  concurrency=pipeline.BEAUTIFY_CONCURRENCY)
     for page in state.get('pages', []):
         result['pages'].append(dict(page_no=page['page_no'],
             origin_url=pipeline._files_url(page['origin']) if os.path.isfile(page.get('origin', '')) else '',
