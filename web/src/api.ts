@@ -488,8 +488,8 @@ export const getProjectUsage=(pid:string)=>request<ProjectLedger>(`/projects/${e
 export const restoreSlideVersion=(pid:string,sid:string,vid:string)=>request<{ok:boolean}>(`/projects/${encodeURIComponent(pid)}/slides/${encodeURIComponent(sid)}/versions/${encodeURIComponent(vid)}/restore`,jsonInit('POST',{}))
 
 export interface ExportPageSnapshot {slide_id:string;page_no:number;display_order:number;version_id:string;version_number:number;reason?:string;content_stale:boolean;config_stale:boolean}
-export interface ExportPlan {project_id:string;kind:'image'|'native';page_nos:number[]|null;included:ExportPageSnapshot[];excluded:ExportPageSnapshot[];snapshot_token:string;note:string;capabilities:Array<{kind:string;label:string;available:boolean;reason:string}>}
+export interface ExportPlan {project_id:string;kind:'image';page_nos:number[]|null;included:ExportPageSnapshot[];excluded:ExportPageSnapshot[];snapshot_token:string;note:string;capabilities:Array<{kind:string;label:string;available:boolean;reason:string}>}
 export interface ExportRecord extends ExportResponse {id:string;project_id:string;snapshot:ExportPageSnapshot[]}
-export const previewExport=(pid:string,kind:'image'|'native',page_nos?:number[])=>request<ExportPlan>(`/projects/${encodeURIComponent(pid)}/export-preview`,jsonInit('POST',{kind,page_nos}))
+export const previewExport=(pid:string,kind:'image',page_nos?:number[])=>request<ExportPlan>(`/projects/${encodeURIComponent(pid)}/export-preview`,jsonInit('POST',{kind,page_nos}))
 export const createExport=(pid:string,plan:ExportPlan)=>request<ExportRecord>(`/projects/${encodeURIComponent(pid)}/exports`,jsonInit('POST',{kind:plan.kind,page_nos:plan.page_nos,snapshot_token:plan.snapshot_token}))
 export const listExports=(pid:string)=>request<{items:ExportRecord[]}>(`/projects/${encodeURIComponent(pid)}/exports`)

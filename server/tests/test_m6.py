@@ -73,17 +73,13 @@ class MilestoneSix(unittest.TestCase):
             main.create_export('p',dict(kind='image',snapshot_token=preview['snapshot_token']))
         self.assertEqual(db.q1('SELECT COUNT(*) FROM exports')[0],0)
 
-    def test_native_packs_only_current_scene(self):
-        row=dict(db.q1("SELECT * FROM slides WHERE id='s1'"))
-        scene=dict(version=2,title='原文标题',points=[],source_image={'sha256':pipeline._image_sha256(row['image_path'])})
-        db.update('slides','s1',dict(native_status='ready',native_scene_json=json.dumps(scene)))
-        preview=main.export_preview('p',{'kind':'native'})
-        self.assertEqual([p['page_no'] for p in preview['included']],[1])
-        result=main.create_export('p',dict(kind='native',snapshot_token=preview['snapshot_token']))
-        path=db.q1('SELECT path FROM exports WHERE id=?',(result['id'],))[0]
-        deck=Presentation(path)
-        self.assertEqual(len(deck.slides),1)
-        self.assertTrue(any(s.has_text_frame and '原文标题' in s.text for s in deck.slides[0].shapes))
+    def test_native_export_is_retired(self):
+        """可编辑 PPTX 只允许由 editppt 精细重建产出；旧原生场景导出必须拒绝。"""
+        with self.assertRaises(HTTPException) as caught:
+            main.export_preview('p', {'kind': 'native'})
+        self.assertEqual(caught.exception.status_code, 400)
+        preview = main.export_preview('p', {'kind': 'image'})
+        self.assertEqual([c['kind'] for c in preview['capabilities']], ['image', 'editable_hi'])
 
 
 if __name__=='__main__':

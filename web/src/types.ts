@@ -393,7 +393,7 @@ export interface EditpptStatus {
 }
 
 /** `editable`（内置引擎整册可编辑）已于 2026-09-21 下线，后端对该 kind 直接 400，故不再列入。 */
-export type ExportKind = 'image' | 'native' | 'editable_hi'
+export type ExportKind = 'image' | 'editable_hi'
 
 export interface ExportResponse {
   kind: ExportKind

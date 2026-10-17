@@ -149,7 +149,7 @@ export function EditableWorkbench({ projectId, autoStart = false }: { projectId:
   const engineBanner = (
     <div className="card">
       <div className="mb-2 flex flex-wrap items-center gap-2">
-        <h2 className="card-title m-0! text-h3">重建引擎</h2>
+        <h2 className="card-title m-0! text-h3">精细重建引擎</h2>
         <span className={cn('status', engine?.ok ? 'status-success' : engine ? 'status-danger' : 'status-info')}>
           {engine ? (engine.ok ? '可用（第三方 skill）' : '不可用') : '探测中…'}
         </span>
@@ -158,7 +158,7 @@ export function EditableWorkbench({ projectId, autoStart = false }: { projectId:
         {engine?.cli && <span className="num text-caption text-ink-muted truncate" title={engine.cli}>{engine.cli}</span>}
       </div>
       <p className="m-0 text-body-sm text-ink-sub">
-        逐页派本机 agent 重建（文字/形状/图表/插画裁片），每页产物自带 <span className="num">validation</span> 校验；
+        逐页派本机 Harness agent 执行 skill 精细重建（文字/图片/图形/背景分别拆分），每页产物自带 <span className="num">validation</span> 校验；
         产物<b>只包含所转的页面</b>，不会夹带整页图片。
       </p>
       {engine && !engine.ok && (
@@ -300,7 +300,7 @@ export function EditableWorkbench({ projectId, autoStart = false }: { projectId:
               : 'POST /api/projects/{id}/editable（engine=editppt）'
         }
       >
-        {submitting ? '提交中…' : `开始转可编辑（${selected.length} 页）`}
+        {submitting ? '提交中…' : `开始精细重建（${selected.length} 页）`}
       </button>
     </ActionBar>
   )
@@ -334,7 +334,7 @@ export function EditableWorkbench({ projectId, autoStart = false }: { projectId:
       </div>
       {!convertedPages.length && (
         <div className="mt-3">
-          <Notice kind="info">还没有转换过任何页面；勾选页面并点「开始转可编辑」后，产物会出现在这里。</Notice>
+          <Notice kind="info">还没有转换过任何页面；勾选页面并点「开始精细重建」后，产物会出现在这里。</Notice>
         </div>
       )}
     </div>

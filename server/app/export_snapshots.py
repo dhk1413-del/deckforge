@@ -3,12 +3,12 @@ import hashlib
 import json
 import os
 import shutil
-from . import config, db, editppt_engine, export_pptx, pipeline, stylepacks
+from . import config, db, editppt_engine, export_pptx, pipeline
 
 
 def plan(pid, items, kind='image', page_nos=None):
-    if kind not in ('image', 'native'):
-        raise ValueError('输出类型须为 image 或 native')
+    if kind != 'image':
+        raise ValueError('导出类型只支持 image；可编辑版请走「图片转可编辑」的 editppt 精细重建')
     if page_nos is not None and (not isinstance(page_nos, list) or any(type(n) is not int for n in page_nos) or not page_nos or len(set(page_nos)) != len(page_nos) or
                                 set(page_nos) - {p['page_no'] for p in items if p['keep']}):
         raise ValueError('所选页范围无效，请重新选择参与页')
@@ -23,15 +23,11 @@ def plan(pid, items, kind='image', page_nos=None):
         if not reason and not p['image_url']: reason = '图片资产缺失'
         if not reason and not current: reason = '当前版本记录缺失'
         if not reason and p['review_required']: reason = '生成图片待核对'
-        if not reason and kind == 'native' and p['native_status'] != 'ready': reason = '当前版本没有已就绪的原生可编辑场景'
         (excluded if reason else included).append(dict(entry, reason=reason) if reason else entry)
     engine = editppt_engine.available()
-    native_ok = bool(shutil.which('node') and os.path.isfile(os.path.join(config.ROOT, 'server/pptx/render_native.mjs')) and
-                     os.path.isdir(os.path.join(config.ROOT, 'server/pptx/node_modules/pptxgenjs')))
     capabilities = [dict(kind='image', label='图片版', available=True, reason='本机装配既有整页图'),
-                    dict(kind='native', label='原生可编辑版（本机 PptxGenJS 重建）', available=native_ok and any(p['native_status']=='ready' for p in wanted),
-                         reason='本机 Node.js / PptxGenJS 渲染器未安装' if not native_ok else '范围内没有当前版本已就绪的原生场景' if not any(p['native_status']=='ready' for p in wanted) else '仅打包当前版本已构建的原生场景；未构建页会排除'),
-                    dict(kind='editable_hi', label='选择页转文字可编辑（图片→可编辑）', available=bool(engine['ok']), reason=engine['reason'])]
+                    dict(kind='editable_hi', label='选择页转文字可编辑（图片→可编辑，editppt 精细重建）',
+                         available=bool(engine['ok']), reason=engine['reason'])]
     basis = dict(kind=kind, included=included, excluded=excluded,
                  assets=[(p['slide_id'], p['image_path'], p.get('native_scene_json'), p.get('reviewed_image')) for p in wanted])
     token = hashlib.sha256(json.dumps(basis, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
@@ -56,22 +52,12 @@ def create(pid, preview):
             frozen = os.path.join(root, str(entry['page_no']) + os.path.splitext(row['image_path'])[1])
             shutil.copyfile(row['image_path'], frozen)
             row['image_path'] = frozen
-            if preview['kind'] == 'native':
-                scene = json.loads(row.get('native_scene_json') or '{}')
-                for index, asset in enumerate(scene.get('image_assets') or []):
-                    source = asset.get('path')
-                    if source:
-                        dest = os.path.join(root, str(entry['page_no']) + '_asset_' + str(index) + os.path.splitext(source)[1])
-                        shutil.copyfile(source, dest)
-                        asset['path'] = dest
-                row['native_scene_json'] = json.dumps(scene, ensure_ascii=False)
             rows.append(row)
         name = pipeline._safe_name(proj['title']) + '_' + preview['kind'] + '_' + eid + '.pptx'
         path = os.path.join(root, name)
-        if preview['kind']=='image': meta = export_pptx.export_image_pptx(proj, rows, path)
-        else:
-            pack = stylepacks.get_style_pack(proj.get('style_pack_id') or '') or {}
-            meta = pipeline._export_native_pptx(proj, rows, path, pack.get('tokens') or {})
+        if preview['kind'] != 'image':
+            raise ValueError('导出类型只支持 image')
+        meta = export_pptx.export_image_pptx(proj, rows, path)
         rec = dict(id=eid, project_id=pid, kind=preview['kind'], path=path, pages=meta['pages'],
                    editable_pages_json=json.dumps(meta['editable_pages']), passthrough_pages_json=json.dumps(meta['passthrough_pages']),
                    snapshot_json=json.dumps(preview['included'], ensure_ascii=False), size_bytes=os.path.getsize(path), created_at=db.now())

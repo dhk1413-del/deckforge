@@ -886,7 +886,7 @@ def convert_items(project_id: str, items: List[Dict[str, Any]],
 
     result = _run_pages(project_id, run_dir, rows, notify, cancel_key)
     if result.get("ok") and validate_text:
-        check = _validate_deck_text(result["deck"], rows)
+        check = _validate_deck_text(result["deck"], rows, result.get("run_dir") or "")
         result["warnings"] = check.get("warnings", [])
         if not check.get("ok"):
             return dict(ok=False, run_dir=run_dir, pages=result.get("pages") or [],
@@ -920,11 +920,13 @@ def _deck_text(path: str) -> tuple:
     return prs, texts
 
 
-def _validate_deck_text(deck: str, rows: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """finalize 后的文字/图片硬校验：不编造、不改写、不整页贴图。
+def _validate_deck_text(deck: str, rows: List[Dict[str, Any]],
+                        run_dir: str = "") -> Dict[str, Any]:
+    """finalize 后的文字/图片硬校验：不编造、不改写、不伪造整页图片。
 
     文字按「字符多重集」比对（允许换行/拆框带来的切分差异，不允许增删字）。
-    缺失比例过大会判失败；少量缺失（例如 logo 被当成图片资产）只记警告。
+    整页图片：与 skill 的 page 校验同口径——`source.png` 或 user-provided 整页图
+    不允许压在可编辑文字上；imagegen clean base / asset-sheet 背景允许作为背景层。
     """
     from collections import Counter
 
@@ -938,12 +940,52 @@ def _validate_deck_text(deck: str, rows: List[Dict[str, Any]]) -> Dict[str, Any]
         return dict(ok=False, error="产物页数不一致（%d 页，输入 %d 页）"
                     % (len(prs.slides), len(page_rows)), warnings=[])
 
-    # 禁止整页图（图片版冒充可编辑）
+    # 整页图：允许 imagegen clean base 当背景；禁止 source.png / user-provided 整页图冒充可编辑
+    def _page_manifest(index: int) -> Dict[str, Any]:
+        if not run_dir:
+            return {}
+        for pattern in ("pages/page_%03d/manifest.json" % index,
+                        "pages/page_%d/manifest.json" % index):
+            path = os.path.join(run_dir, pattern)
+            if os.path.isfile(path):
+                try:
+                    return json.load(open(path, encoding="utf-8"))
+                except (OSError, ValueError):
+                    return {}
+        return {}
+
     for index, slide in enumerate(prs.slides, 1):
+        full_slide = False
         for shape in slide.shapes:
             if getattr(shape, "shape_type", None) == 13 and \
                     (shape.width or 0) >= prs.slide_width * .95 and (shape.height or 0) >= prs.slide_height * .95:
-                return dict(ok=False, error="第 %d 页用了整页图片冒充可编辑" % index, warnings=[])
+                full_slide = True
+                break
+        if not full_slide:
+            continue
+        manifest = _page_manifest(index)
+        provenance = {str(item.get("path") or ""): str(item.get("source_type") or "")
+                      for item in manifest.get("asset_provenance") or [] if isinstance(item, dict)}
+        full_images = []
+        for item in manifest.get("images") or []:
+            box = item.get("box_px") or []
+            source = manifest.get("source") or {}
+            if len(box) == 4 and source.get("width_px") and source.get("height_px") and \
+                    float(box[2]) >= float(source["width_px"]) * .95 and \
+                    float(box[3]) >= float(source["height_px"]) * .95:
+                full_images.append(item)
+        if not manifest:
+            # 没有 manifest 可查时保守：整页图 + 没有任何可编辑文字才判失败
+            has_text = any(getattr(sh, "has_text_frame", False) and sh.text.strip() for sh in slide.shapes)
+            if not has_text:
+                return dict(ok=False, error="第 %d 页只有整页图片，没有可编辑内容" % index, warnings=[])
+            continue
+        for item in full_images:
+            path = str(item.get("path") or "")
+            source_type = provenance.get(path, "")
+            if os.path.basename(path) == "source.png" or source_type in ("user-provided", "user-approved-rasterization"):
+                return dict(ok=False, error="第 %d 页用了整页源图/user-provided 图片冒充可编辑" % index, warnings=[])
+    
 
     truth = "".join(str(t) for row in page_rows for t in (row.get("truth_texts") or []))
     norm = lambda value: re.sub(r"\s+", "", value)              # noqa: E731

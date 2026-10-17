@@ -51,7 +51,7 @@
 | GET | `/api/editable-engines` | **「图片转可编辑」唯一的引擎**：`{"engines":[{"id":"editppt","ok":true,"seconds_per_page":780,"cli":"…","skill_dir":"…","reason":"可用"}]}`。内置引擎（一次视觉识别 + 本地渲染）已于 2026-09-21 下线：`ok=false` 时 `reason` 说明缺哪一件（CLI / skill 目录 / agent CLI：默认 Harness `dsh`，可用 `editppt.agent=hermes` 切回 Hermes），界面如实报错且**不回退**。 |
 | POST | `/api/projects/{id}/editable` | **图片转可编辑**：body `{"page_nos":[1,2],"engine":"editppt","resume":false}`（engine 只接受 `editppt`，传 `builtin` → 400 提示已下线）→ `{"job_id":"…","engine":"editppt","estimate":{…},"mode":"editppt_skill"}`。<br>驱动第三方 skill `image-to-editable-ppt` 的状态机（prepare → **用 `run next --json` 决策** → 并发 dispatch → Harness headless 作 page worker 写 manifest → `page build/validate` → `run record` → `run finalize`）；默认并发 2 页（`editppt.max_concurrent_pages` 可配，skill 上限 6）、实测约 13 分钟/页、产物自带 `validation.json` 校验，**只含所转页面**；任一页校验不过 → 保留已完成页与现场、如实报错（可续跑），失败明细含页码/阶段/原因。`resume=true` 复用最近一次未完成的 run 现场（跳过已记录页）。<br>**文字真源**：有真源（生成/美化）写标准 `text_hints.json` 的 `text`；没有真源时依次尝试 skill 的 PaddleOCR hints、本机 **RapidOCR** 离线 OCR（`server/pptx/editppt_ocr.py`）；全不可用时如实失败并提示配置 OCR。<br>**前端**：首页「图片转可编辑」上传原页后直达项目工作台的「按图片版重建」页签并自动开始（同一标签会话只自动触发一次，F5 不重复提交）；也可在生成向导第⑥步、或工作台页签里手动勾选页后重建。 |
 | GET | `/api/projects/{id}/export?kind=image` | 导出**图片版 PPTX**（同步返回文件）：`{"kind":"image","file":"/files/exports/xxx_image.pptx","size_bytes":123456,"pages":13,"editable_pages":[]}` |
-| GET | `/api/projects/{id}/export?kind=editable` | **已下线**（随内置引擎一并移除）：请求该 kind → **400** 并提示改用工作台「按图片版重建」页签的 `kind=editable_hi` 产物。内部换皮 B 口径仍直接调用 `pipeline.do_export(pid,'editable')`，不走本端点。 |
+| GET | `/api/projects/{id}/export?kind=editable` | **已下线**（随内置引擎一并移除）：请求该 kind → **400** 并提示改用工作台「按图片版重建」页签的 `kind=editable_hi` 产物。旧 `pipeline.do_export(pid,'editable')` 也已下线，同样提示走 editppt 精细重建。 |
 | GET | `/api/projects/{id}/export?kind=editable_hi` | 取**精细重建产物**（第三方 skill，仅含已转页）：`{"kind":"editable_hi","engine":"editppt","file":"…","pages":2,"editable_pages":[1,2],"size_bytes":…,"note":"…仅含已转换页面…"}`；未转换过 → **400** 并提示先去「图片转可编辑」转换。 |
 | GET | `/files/{path}` | 静态文件（原稿、页面图、导出件） |
 
@@ -208,15 +208,15 @@ M3 补充：上传替换原稿与 import-pages 在生成中同样返回 409，�
 
 | 方法 | 路径 | 契约 |
 |---|---|---|
-| POST | `/api/projects/{pid}/export-preview` | body `{kind:"image"\|"native", page_nos?:number[]}`，省略范围为全部 `keep` 页；所选范围不能为空且只允许参与页。返回 `project_id,kind,page_nos,included[],excluded[],snapshot_token,capabilities[],note`。 |
+| POST | `/api/projects/{pid}/export-preview` | body `{kind:"image", page_nos?:number[]}`，省略范围为全部 `keep` 页；所选范围不能为空且只允许参与页。返回 `project_id,kind,page_nos,included[],excluded[],snapshot_token,capabilities[],note`。**`kind=native` 已下线**（旧 PptxGenJS 原生场景打包）；可编辑版请走「图片转可编辑」的 `kind=editable_hi`。 |
 | POST | `/api/projects/{pid}/exports` | body `{kind,page_nos:number[]\|null,snapshot_token}`，必须提交预览 token；范围/版本/核对状态变化返回 409，重新预览确认。成功返回导出记录。 |
 | GET | `/api/projects/{pid}/exports` | `{items:导出记录[]}`，按时间倒序，以项目 ID 关联，改名不影响查询。 |
 
-`included[]` / `excluded[]`：`slide_id,page_no,display_order,version_id,version_number,content_stale,config_stale`；排除项另含中文 `reason`。按展示序号排序。未就绪、失败、中断、排队、运行、资产缺失、版本缺失、未核对页均明确排除；原生输出还排除未就绪场景。内容/配置过期保留旧成果并提示，导出不重新生成。
+`included[]` / `excluded[]`：`slide_id,page_no,display_order,version_id,version_number,content_stale,config_stale`；排除项另含中文 `reason`。按展示序号排序。未就绪、失败、中断、排队、运行、资产缺失、版本缺失、未核对页均明确排除。内容/配置过期保留旧成果并提示，导出不重新生成。
 
-`capabilities[]`：`kind,label,available,reason`。图片版为本机装配；原生版仅打包当前版本 `native_status=ready`、通过源图哈希检查的场景，需本机 Node.js/PptxGenJS；不会自动调用模型构建。`editable_hi` 为第三方 editppt 图片转文字可编辑能力，探测缺失原因如实返回。转换仍走 M4 报价与幂等，费用未知为 `null`，不声明免费。
+`capabilities[]`：`kind,label,available,reason`。图片版为本机装配；`editable_hi` 为第三方 `image-to-editable-ppt`（Harness 逐页精细重建，文字/图片/图形/背景分别拆分）能力，探测缺失原因如实返回。**不再有原生场景导出**：可编辑 PPTX 只能由 editppt 产出。转换仍走 M4 报价与幂等，费用未知为 `null`，不声明免费。
 
-导出记录：`id,project_id,kind,pages,file,size_bytes,created_at,snapshot[],editable_pages[],passthrough_pages[]`。`file` 为可下载 `/files/...` URL；磁盘资产缺失时为空。历史无快照记录 `snapshot=[]`，不得推断版本。新图片/原生产物在独立导出 ID 目录下，文件名含导出时的项目名与唯一 ID；装配使用图片/原生裁片副本。此后重生成、回退、改内容、改名不修改已导出的 PPTX。重复装配不调用模型、不写模型费用，生成独立记录。
+导出记录：`id,project_id,kind,pages,file,size_bytes,created_at,snapshot[],editable_pages[],passthrough_pages[]`。`file` 为可下载 `/files/...` URL；磁盘资产缺失时为空。历史无快照记录 `snapshot=[]`，不得推断版本。新图片产物在独立导出 ID 目录下，文件名含导出时的项目名与唯一 ID；装配使用图片裁片副本。此后重生成、回退、改内容、改名不修改已导出的 PPTX。重复装配不调用模型、不写模型费用，生成独立记录。
 
 转换新现场保存 `deckforge_snapshot.json`（输入页 ID、版本 ID、版本序号与图片副本）；续跑复用该现场的版本，不读取新图片。无快照的旧现场保留原续跑能力，但成果 `snapshot=[]`，明确标为版本不可追溯；不推断旧版本。转换成功发布独立且含项目名的文件，并将版本快照写入 `exports.snapshot_json`。M4 转换指纹增加当前版本 ID。旧 GET 图片导出仍保留全页就绪/核对闸，成功装配改用不可变导出记录；部分导出使用新增接口。
 

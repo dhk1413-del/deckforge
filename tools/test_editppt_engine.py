@@ -283,7 +283,38 @@ def main():
         os.remove(os.path.join(pr, "page_result.json"))
         check("其它产物缺失 → 不补、不伪造", ee._ensure_page_result(pr) is False)
 
-        print("[12] 取消后不再往下跑（保留现场，不当失败）")
+        print("[12] 整页图校验：imagegen 背景允许，source.png/user-provided 冒充可编辑要拒绝")
+        from PIL import Image
+        from pptx import Presentation
+        from pptx.util import Inches
+        case = os.path.join(tmp, "full_slide_case")
+        page = os.path.join(case, "pages", "page_001")
+        os.makedirs(page, exist_ok=True)
+        img = os.path.join(page, "bg.png")
+        Image.new("RGB", (1600, 900), "#071A33").save(img)
+        deck = Presentation()
+        deck.slide_width = Inches(13.333)
+        deck.slide_height = Inches(7.5)
+        slide = deck.slides.add_slide(deck.slide_layouts[6])
+        slide.shapes.add_picture(img, 0, 0, width=deck.slide_width, height=deck.slide_height)
+        slide.shapes.add_textbox(Inches(0.5), Inches(0.5), Inches(4), Inches(1)).text = "标题"
+        deck_path = os.path.join(case, "deck.pptx")
+        deck.save(deck_path)
+
+        def write_manifest(source_type):
+            manifest = {"source": {"width_px": 1600, "height_px": 900},
+                        "images": [{"path": "bg.png", "box_px": [0, 0, 1600, 900]}],
+                        "asset_provenance": [{"path": "bg.png", "source_type": source_type}]}
+            json.dump(manifest, open(os.path.join(page, "manifest.json"), "w", encoding="utf-8"))
+
+        write_manifest("imagegen")
+        check("imagegen clean base 整页背景允许（背景层）",
+              ee._validate_deck_text(deck_path, [dict(page_no=1, truth_texts=["标题"])], case)["ok"] is True)
+        write_manifest("user-provided")
+        check("user-provided 整页图冒充可编辑 → 拒绝",
+              ee._validate_deck_text(deck_path, [dict(page_no=1, truth_texts=["标题"])], case)["ok"] is False)
+
+        print("[13] 取消后不再往下跑（保留现场，不当失败）")
         fk.set(ee, "_run_page_worker", lambda *a, **k: dict(ok=False, cancelled=True, tail="已停止"))
         run3 = os.path.join(tmp, "editppt", "p_res3-20260921-000000")
         os.makedirs(os.path.join(run3, "pages", "page_001"), exist_ok=True)

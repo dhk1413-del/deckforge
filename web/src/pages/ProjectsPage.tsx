@@ -23,7 +23,7 @@ const CATEGORY_OPTIONS: Array<{ key: string; label: string }> = [
 /* 导出类型的真实名称（后端 kind → 界面文案），不认识的原样显示 */
 const EXPORT_LABEL: Record<string, string> = {
   image: '图片版 PPT',
-  native: '原生可编辑 PPT',
+  native: '原生可编辑 PPT（旧，已下线）',
   editable_hi: '转文字可编辑 PPT',
   beautify_image: '美化图片版 PPT',
   beautify_editable: '美化可编辑版 PPT',

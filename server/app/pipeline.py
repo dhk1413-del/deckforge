@@ -869,14 +869,9 @@ def do_export(project_id: str, kind: str, require_review: bool = False) -> Dict[
     fname = "%s_%s_%s.pptx" % (proj.get("title") or "deck", kind,
                                db.uid("e"))
     out_path = os.path.join(out_dir, re.sub(r"[^\w.\u4e00-\u9fff-]", "_", fname))
-    if kind == "image":
-        meta = export_pptx.export_image_pptx(proj, rows, out_path)
-    else:
-        native_rows = [r for r in rows if native_scene_is_current(r)]
-        if not native_rows:
-            raise ValueError("还没有已构建的原生可编辑页；请先勾选页面并点击「构建原生可编辑页」")
-        meta = _export_native_pptx(proj, native_rows, out_path, style.get("tokens", {}) or {})
-        meta["skipped_pages"] = [r["page_no"] for r in rows if not native_scene_is_current(r)]
+    if kind != "image":
+        raise ValueError("可编辑版只走「图片转可编辑」的 editppt 精细重建（kind=editable_hi）；旧原生场景导出已下线")
+    meta = export_pptx.export_image_pptx(proj, rows, out_path)
     rec = dict(id=db.uid("e"), project_id=project_id, kind=kind, path=out_path, pages=meta["pages"],
                editable_pages_json=json.dumps(meta["editable_pages"]),
                passthrough_pages_json=json.dumps(meta["passthrough_pages"]),
